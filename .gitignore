@@ -1,0 +1,26 @@
+# Local development environments
+.venv/
+__pycache__/
+*.py[cod]
+
+# Blender backups and temporary files
+*.blend1
+*.blend2
+*.blend@
+BikeChainWheel_*.blend
+
+# Release artifacts are attached to GitHub Releases
+bike_chain_sprocket.zip
+
+# Supplied third-party reference and extracted inspection data
+cassette.stp
+reference_stl/
+
+# Local analysis-only utilities tied to the unpublished STEP reference
+tools/analyze_step.py
+tools/export_step_solids.py
+tools/inspect_stl.py
+tools/inspect_tip_pitch.py
+
+# Generated root-level previews are copied into docs/ for publication
+BikeChainWheel_*_Preview.png
