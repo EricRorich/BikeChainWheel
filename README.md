@@ -2,7 +2,7 @@
 
 Parametrischer Blender-Generator für Fahrrad- und Motorrad-Kettenräder ab fünf Zähnen.
 
-[**Aktuelles Add-on als ZIP herunterladen**](https://github.com/EricRorich/BikeChainWheel/releases/latest)
+[**Aktuelles Add-on als ZIP herunterladen**](https://github.com/EricRorich/BikeChainWheel/releases/latest/download/bike_chain_sprocket.zip)
 
 ![Übersicht der Fahrrad- und Motorradketten-Presets](docs/chain-presets.png)
 
