@@ -1,73 +1,73 @@
 # Bike Chain Sprocket Generator – Blender Add-on
 
-Parametrischer Blender-Generator für Fahrrad- und Motorrad-Kettenräder ab fünf Zähnen.
+A parametric Blender generator for bicycle and motorcycle chain sprockets with five or more teeth.
 
-[**Aktuelles Add-on als ZIP herunterladen**](https://github.com/EricRorich/BikeChainWheel/releases/latest/download/bike_chain_sprocket.zip)
+[**Download the latest add-on ZIP**](https://github.com/EricRorich/BikeChainWheel/releases/latest/download/bike_chain_sprocket.zip)
 
-![Übersicht der Fahrrad- und Motorradketten-Presets](docs/chain-presets.png)
+![Overview of bicycle and motorcycle chain presets](docs/chain-presets.png)
 
-Dieses Blender-Add-on erzeugt parametrische Kettenräder für Fahrradketten, einschließlich sehr kleiner Varianten mit **5 bis 11 Zähnen**. Anders als Blenders allgemeiner Gear-Generator basiert das Zahnprofil auf der Kettengeometrie:
+Unlike Blender's general-purpose gear generator, this add-on builds sprockets from roller-chain geometry:
 
-- Teilungskreis aus Kettenteilung und Zahnzahl
-- kreisförmige Rollenmulden für die Kettenrollen
-- C2-stetige quintische Hermite-Übergänge von den Mulden zu den Zahnspitzen
-- gleichgerichtete tangentiale Verformung der Zahnspitzen
-- optional gerade, tangential abgeflachte Zahnspitzen
-- geschlossener, manifold Mesh-Körper mit mittiger Bohrung
-- optionale, nicht-destruktive Kantenfase
+- pitch circle calculated from chain pitch and tooth count
+- circular roller seats
+- C2-continuous quintic Hermite transitions from roller seats to tooth tips
+- directional tooth-tip pitch with matching upper and lower contours
+- optional straight tangential tooth-tip flattening
+- closed manifold mesh with a circular center bore
+- optional non-destructive edge bevel
 
 ## Installation
 
-1. Unter [Releases](https://github.com/EricRorich/BikeChainWheel/releases) die Datei `bike_chain_sprocket.zip` herunterladen.
-2. In Blender **Edit → Preferences → Add-ons** öffnen.
-3. Je nach Blender-Version **Install…** oder **Install from Disk…** wählen.
-4. `bike_chain_sprocket.zip` auswählen und das Add-on aktivieren.
-5. Im 3D Viewport: **Shift+A → Mesh → Bicycle Chain Sprocket**.
-6. Parameter direkt im Erzeugungsdialog oder über **F9 / Adjust Last Operation** ändern.
+1. Download `bike_chain_sprocket.zip` from the [Releases page](https://github.com/EricRorich/BikeChainWheel/releases).
+2. Open **Edit → Preferences → Add-ons** in Blender.
+3. Choose **Install…** or **Install from Disk…**, depending on your Blender version.
+4. Select `bike_chain_sprocket.zip` and enable the add-on.
+5. In the 3D Viewport, choose **Shift+A → Mesh → Bicycle Chain Sprocket**.
+6. Adjust the parameters during creation or reopen them with **F9 / Adjust Last Operation**.
 
 ## Chain Size Presets
 
-`Chain Size Preset` lädt Kettenteilung, Rollendurchmesser und eine konservative Ausgangsdicke für das Ritzel. Die vorgeschlagene Ritzeldicke liegt bewusst etwas unter der nominalen inneren Kettenbreite, damit seitliches Spiel bleibt.
+`Chain Size Preset` loads chain pitch, roller diameter, and a conservative starting thickness for the sprocket. The suggested sprocket thickness is intentionally smaller than the nominal chain inner width to preserve lateral clearance.
 
-| Preset | Pitch | Roller | vorgeschlagene Ritzeldicke |
+| Preset | Pitch | Roller | Suggested sprocket thickness |
 |---|---:|---:|---:|
-| Bicycle 1/8" – Single-speed/BMX | 12,700 mm | 7,750 mm | 2,80 mm |
-| Bicycle 3/32" – Derailleur | 12,700 mm | 7,750 mm | 2,00 mm |
-| Bicycle 11/128" – Narrow 10–12 speed | 12,700 mm | 7,750 mm | 1,80 mm |
-| Motorcycle 415 | 12,700 mm | 7,770 mm | 4,30 mm |
-| Motorcycle 420 | 12,700 mm | 7,770 mm | 5,80 mm |
-| Motorcycle 428 | 12,700 mm | 8,510 mm | 7,30 mm |
-| Motorcycle 520 | 15,875 mm | 10,160 mm | 5,80 mm |
-| Motorcycle 525 | 15,875 mm | 10,160 mm | 7,30 mm |
-| Motorcycle 530 | 15,875 mm | 10,160 mm | 8,80 mm |
-| Custom | frei | frei | frei |
+| Bicycle 1/8" – Single-speed/BMX | 12.700 mm | 7.750 mm | 2.80 mm |
+| Bicycle 3/32" – Derailleur | 12.700 mm | 7.750 mm | 2.00 mm |
+| Bicycle 11/128" – Narrow 10–12 speed | 12.700 mm | 7.750 mm | 1.80 mm |
+| Motorcycle 415 | 12.700 mm | 7.770 mm | 4.30 mm |
+| Motorcycle 420 | 12.700 mm | 7.770 mm | 5.80 mm |
+| Motorcycle 428 | 12.700 mm | 8.510 mm | 7.30 mm |
+| Motorcycle 520 | 15.875 mm | 10.160 mm | 5.80 mm |
+| Motorcycle 525 | 15.875 mm | 10.160 mm | 7.30 mm |
+| Motorcycle 530 | 15.875 mm | 10.160 mm | 8.80 mm |
+| Custom | user-defined | user-defined | user-defined |
 
-Nach Auswahl eines Presets bleiben die einzelnen Werte editierbar. Für eine konkrete Kette müssen vor Fertigung immer das Datenblatt des Herstellers und ein reales Kettenmuster geprüft werden; besonders Rollen- und Innenbreiten können durch Baureihe, Dichtungsart und Hersteller leicht variieren.
+All individual values remain editable after loading a preset. Before manufacturing, always verify the dimensions against the exact chain manufacturer's data sheet and a physical chain sample. Roller and inner widths may vary slightly by manufacturer, product series, and O-ring/X-ring construction.
 
-![Zahnzahlen 5T bis 11T](docs/teeth-5-to-11.png)
+![Tooth counts from 5T through 11T](docs/teeth-5-to-11.png)
 
-## Sinnvolle Startwerte für Fahrradketten
+## Recommended Starting Values
 
-| Parameter | Startwert | Bedeutung |
+| Parameter | Default | Meaning |
 |---|---:|---|
-| Teeth | 5 | geometrisch unterstützt ab 5; Warnung bis 8T |
-| Chain Pitch | 12,7 mm | Standard-Fahrradkette: 1/2 Zoll |
-| Roller Diameter | 7,75 mm | typischer Rollendurchmesser |
-| Roller Clearance | 0,15 mm | zusätzliches radiales Spiel |
-| Tooth Height | 0,45 mm | Zahnspitze über dem Teilkreis |
-| Tooth Tip Pitch | 1,5° | Ober- und Unterseite gemeinsam in eine Richtung |
-| Tooth Tip Flattening | 0,0 mm | radiale Tiefe der geraden Abflachung |
-| Thickness | 2,0 mm | an Ketteninnenbreite und Material anpassen |
-| Bore Diameter | 5,0 mm | runde Mittelbohrung |
-| Scale | 1,0 | gleichmäßige Skalierung aller Maße |
-| Profile Resolution | 32 | Punkte pro Zahn |
-| Edge Bevel | 0,10 mm | nicht-destruktiver Bevel Modifier |
+| Teeth | 5 | Geometric minimum; warning shown through 8T |
+| Chain Pitch | 12.7 mm | Standard 1/2-inch bicycle chain pitch |
+| Roller Diameter | 7.75 mm | Typical bicycle-chain roller diameter |
+| Roller Clearance | 0.15 mm | Additional radial clearance around each roller |
+| Tooth Height | 0.45 mm | Tooth tip above the pitch circle |
+| Tooth Tip Pitch | 1.5° | Upper and lower contours move together in one direction |
+| Tooth Tip Flattening | 0.0 mm | Radial depth of the straight flat cap |
+| Thickness | 2.0 mm | Match to chain inner width and manufacturing clearance |
+| Bore Diameter | 5.0 mm | Circular center bore |
+| Scale | 1.0 | Uniform scale for every generated dimension |
+| Profile Resolution | 32 | Profile vertices per tooth |
+| Edge Bevel | 0.10 mm | Non-destructive Bevel modifier |
 
-Die mitgelieferte Referenzkassette hat beim 11-Zahn-Ritzel ungefähr 45,98 mm Außendurchmesser. Das Add-on erzeugt mit den Standardwerten ebenfalls etwa **45,98 mm**; Zahnzahl, Teilung und Rollensitz sind dabei vollständig parametrisch.
+The supplied reference cassette has an outside diameter of approximately 45.98 mm for its 11-tooth sprocket. The add-on produces approximately **45.98 mm** with the default 11T geometry.
 
-## Ausgabedaten
+## Generated Object Data
 
-Das Objekt wird in realen metrischen Abmessungen erzeugt. Millimeterwerte werden unter Berücksichtigung von Blenders `Unit Scale` in Blender-Einheiten umgerechnet. Zusätzlich speichert das Objekt folgende Custom Properties:
+The mesh is generated at real metric dimensions and respects Blender's `Unit Scale`. The object stores these custom properties:
 
 - `teeth`
 - `chain_preset`
@@ -80,27 +80,38 @@ Das Objekt wird in realen metrischen Abmessungen erzeugt. Millimeterwerte werden
 - `outside_diameter_mm`
 - `profile_type`
 
-## Wichtige Hinweise
+## Tooth-Tip Controls
 
-- 5–8 Zähne verursachen extreme Kettengelenkwinkel und einen sehr starken Polygoneffekt. Dies ist nur das geometrisch unterstützte Minimum, nicht die Empfehlung für einen normalen Fahrradantrieb. Blender zeigt dafür eine Warnung an.
-- `Tooth Tip Pitch` verschiebt Ober- und Unterseite jeder Zahnspitze gemeinsam in dieselbe tangentiale Richtung. Die Zahnflanken werden dadurch leicht asymmetrisch, während die kreisförmigen Rollenmulden unverändert bleiben. Positive und negative Werte wechseln die Richtung.
+### Tooth Tip Pitch
+
+`Tooth Tip Pitch` shifts the upper and lower contour of every tooth tip together in the same tangential direction. This produces slightly asymmetric tooth flanks while leaving the circular roller seats unchanged. Positive and negative values reverse the direction.
 
 ![Tooth Tip Pitch](docs/tooth-tip-pitch.png)
 
-- `Tooth Tip Flattening` schneidet die runde Spitze um den eingegebenen Millimeterwert zurück. Die entstehende Kante ist eine echte gerade Tangentialfläche. `0,0 mm` deaktiviert die Abflachung; etwa `0,15–0,30 mm` ist ein sinnvoller Startbereich.
+### Tooth Tip Flattening
+
+`Tooth Tip Flattening` trims the rounded tip by the entered radial amount. The resulting cap is a true straight tangent line rather than a constant-radius arc. `0.0 mm` disables flattening; approximately `0.15–0.30 mm` is a useful starting range.
 
 ![Tooth Tip Flattening](docs/tooth-tip-flattening.png)
-- `Scale` skaliert auch Kettenteilung, Rollensitze, Bohrung, Dicke und Bevel. Für eine reale 1/2-Zoll-Fahrradkette muss der Wert normalerweise `1,0` bleiben; andere Werte sind für Miniaturen, Prototypen oder komplett mitskalierte Ketten gedacht.
-- Das Add-on bildet keine Schalthilfen, asymmetrischen Zahnkürzungen oder Shimano/SRAM-Kassettenverzahnungen nach. Diese Details der STEP-Referenz sind für ein einfaches einzelnes Kleinritzel nicht erforderlich.
-- Die Mittelaufnahme ist absichtlich eine frei einstellbare runde Bohrung. Spezielle Wellenprofile können anschließend separat modelliert oder per Boolean ausgeschnitten werden.
-- Vor Fertigung oder Belastungseinsatz müssen Kettenbreite, Toleranzen, Material, Achsaufnahme und Festigkeit geprüft werden.
 
-## Entwicklungstest
+## Important Notes
 
-Im Projektordner wurde das Add-on mit Blenders Python-API getestet:
+- Sprockets with 5–8 teeth cause extreme chain articulation and strong polygonal action. Five teeth is only the geometric minimum supported by the generator, not a recommendation for a normal bicycle or motorcycle drivetrain.
+- `Scale` also scales chain pitch, roller seats, bore, thickness, flattening, and bevel. Keep it at `1.0` for a real chain unless the entire mechanism is scaled.
+- The add-on does not reproduce proprietary shifting ramps, asymmetric shortened teeth, or Shimano/SRAM cassette spline interfaces.
+- The center mount is intentionally a configurable circular bore. Add specialized shaft or spline profiles separately.
+- Verify chain width, tolerances, material, mounting geometry, tooth strength, and the exact manufacturer specification before manufacturing or load-bearing use.
+
+## Development Test
+
+Run the Blender API test suite from the repository root:
 
 ```bash
 blender --background --python tests/run_blender_tests.py
 ```
 
-Der Test registriert das Add-on, erzeugt 5T bis 11T und prüft zusätzlich alle neun Fahrrad-/Motorrad-Presets samt `Custom`, geschlossene Kanten, positive Volumenorientierung, Soll-Außendurchmesser, exakte Rollensitze, `Unit Scale`, Gesamt-`Scale`, 6° `Tooth Tip Pitch`, eine echte gerade 0,30-mm-Abflachung, den ausgewerteten Bevel Modifier sowie die Ablehnung zu großer Bohrungen.
+The suite registers the add-on and verifies 5T–11T generation, all nine bicycle/motorcycle presets and Custom mode, manifold topology, positive volume orientation, target outside diameters, exact roller seats, Blender `Unit Scale`, uniform `Scale`, 6° directional tooth-tip pitch, a true straight 0.30 mm tip flattening, the evaluated Bevel modifier, and rejection of oversized bores.
+
+## License
+
+This project is licensed under the **GNU General Public License v3.0 or later**. See [LICENSE](LICENSE).
