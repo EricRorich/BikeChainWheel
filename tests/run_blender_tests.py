@@ -6,7 +6,7 @@ import math
 import sys
 
 import bpy
-from mathutils import Vector
+import bmesh
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -16,22 +16,41 @@ addon.register()
 
 def assert_manifold_positive_volume(obj):
     edge_face_counts = {}
-    volume = 0.0
     for polygon in obj.data.polygons:
         indices = list(polygon.vertices)
         for index, first in enumerate(indices):
             second = indices[(index + 1) % len(indices)]
             edge = tuple(sorted((first, second)))
             edge_face_counts[edge] = edge_face_counts.get(edge, 0) + 1
-        origin = Vector(obj.data.vertices[indices[0]].co)
-        for index in range(1, len(indices) - 1):
-            second = Vector(obj.data.vertices[indices[index]].co)
-            third = Vector(obj.data.vertices[indices[index + 1]].co)
-            volume += origin.dot(second.cross(third)) / 6.0
     boundary = [edge for edge, count in edge_face_counts.items() if count != 2]
     assert not boundary, f"{obj.name}: {len(boundary)} non-manifold edges"
+    mesh_copy = obj.data.copy()
+    volume_mesh = bmesh.new()
+    volume_mesh.from_mesh(mesh_copy)
+    volume = volume_mesh.calc_volume(signed=True)
+    volume_mesh.free()
+    bpy.data.meshes.remove(mesh_copy)
     assert volume > 0.0, f"{obj.name}: signed volume is {volume}"
     return volume
+
+
+def connected_mesh_components(obj):
+    adjacency = {vertex.index: set() for vertex in obj.data.vertices}
+    for edge in obj.data.edges:
+        first, second = edge.vertices
+        adjacency[first].add(second)
+        adjacency[second].add(first)
+    remaining = set(adjacency)
+    components = 0
+    while remaining:
+        components += 1
+        pending = [remaining.pop()]
+        while pending:
+            current = pending.pop()
+            neighbours = adjacency[current] & remaining
+            remaining.difference_update(neighbours)
+            pending.extend(neighbours)
+    return components
 
 
 # The public Profile Rotation control is intentionally removed. The new chain
@@ -39,36 +58,100 @@ def assert_manifold_positive_volume(obj):
 operator_properties = bpy.ops.mesh.add_bike_chain_sprocket.get_rna_type().properties
 assert "profile_rotation" not in operator_properties
 assert operator_properties["generate_chain_support"].default is True
+assert operator_properties["support_both_sides"].default is False
 assert math.isclose(operator_properties["support_rim_offset_mm"].default, 0.0)
 assert math.isclose(operator_properties["support_height_mm"].default, 1.0)
+assert math.isclose(operator_properties["overall_scale"].hard_max, 1000.0)
+assert addon._select_boolean_solver({"FAST", "EXACT"}) == "EXACT"
+assert addon._select_boolean_solver({"FLOAT", "EXACT"}) == "EXACT"
+assert addon._select_boolean_solver({"MANIFOLD", "EXACT"}) == "MANIFOLD"
 
-# By default the add operator creates a parented annular support above the
-# sprocket. Its outer edge matches the roller-seat root circle, so the inner
-# side of the chain can rest on it without blocking the rollers.
+# By default, sprocket and support must be one connected, watertight printable
+# object. The raised loop ends at the roller-seat root circle.
 bpy.ops.mesh.add_bike_chain_sprocket(
     teeth=11,
     tooth_tip_pitch=0.0,
     bevel_width_mm=0.0,
 )
 supported_sprocket = bpy.context.active_object
-support_objects = [
-    child for child in supported_sprocket.children if child.get("chain_support")
-]
-assert len(support_objects) == 1
-default_support = support_objects[0]
-assert_manifold_positive_volume(default_support)
+assert not supported_sprocket.children
+assert_manifold_positive_volume(supported_sprocket)
+assert connected_mesh_components(supported_sprocket) == 1
 expected_root_mm = 12.7 / (2.0 * math.sin(math.pi / 11)) - (7.75 * 0.5 + 0.15)
+support_top_vertices = [
+    vertex.co
+    for vertex in supported_sprocket.data.vertices
+    if math.isclose(vertex.co.z * 1000.0, 2.0, abs_tol=1e-5)
+]
+assert support_top_vertices
 support_radius_mm = 1000.0 * max(
-    math.hypot(vertex.co.x, vertex.co.y) for vertex in default_support.data.vertices
+    math.hypot(vertex.x, vertex.y) for vertex in support_top_vertices
 )
 assert math.isclose(support_radius_mm, expected_root_mm, abs_tol=1e-5)
-support_z_mm = [1000.0 * vertex.co.z for vertex in default_support.data.vertices]
-assert math.isclose(min(support_z_mm), 1.0, abs_tol=1e-6)
+support_z_mm = [1000.0 * vertex.co.z for vertex in supported_sprocket.data.vertices]
+assert math.isclose(min(support_z_mm), -1.0, abs_tol=1e-6)
 assert math.isclose(max(support_z_mm), 2.0, abs_tol=1e-6)
-assert default_support.parent == supported_sprocket
 
-# Rim offset changes only the support radius. Disabling support creates no
-# helper object.
+# Optional bilateral support extrudes the same platform from both sprocket
+# faces, but still produces exactly one connected watertight object.
+bpy.ops.mesh.add_bike_chain_sprocket(
+    teeth=11,
+    tooth_tip_pitch=0.0,
+    support_both_sides=True,
+    bevel_width_mm=0.0,
+)
+bilateral_sprocket = bpy.context.active_object
+assert not bilateral_sprocket.children
+assert_manifold_positive_volume(bilateral_sprocket)
+assert connected_mesh_components(bilateral_sprocket) == 1
+bilateral_z_mm = [
+    1000.0 * vertex.co.z for vertex in bilateral_sprocket.data.vertices
+]
+assert math.isclose(min(bilateral_z_mm), -2.0, abs_tol=1e-5)
+assert math.isclose(max(bilateral_z_mm), 2.0, abs_tol=1e-5)
+for support_face_z in (-2.0, 2.0):
+    face_radius_mm = 1000.0 * max(
+        math.hypot(vertex.co.x, vertex.co.y)
+        for vertex in bilateral_sprocket.data.vertices
+        if math.isclose(vertex.co.z * 1000.0, support_face_z, abs_tol=1e-5)
+    )
+    assert math.isclose(face_radius_mm, expected_root_mm, abs_tol=1e-5)
+
+# A Boolean exception must cancel cleanly without leaving the sprocket,
+# temporary support, modifier, or orphan meshes behind in the Blender file.
+objects_before_failure = set(bpy.data.objects.keys())
+meshes_before_failure = set(bpy.data.meshes.keys())
+active_before_failure = bpy.context.view_layer.objects.active
+selected_before_failure = {
+    obj.name for obj in bpy.context.selected_objects
+}
+original_apply_modifier = getattr(addon, "_apply_modifier")
+
+
+def forced_modifier_failure(modifier_name):
+    raise RuntimeError("forced Boolean failure")
+
+
+setattr(addon, "_apply_modifier", forced_modifier_failure)
+try:
+    try:
+        failure_result = bpy.ops.mesh.add_bike_chain_sprocket(
+            teeth=11,
+            support_both_sides=True,
+            bevel_width_mm=0.0,
+        )
+    except RuntimeError as error:
+        assert "Could not integrate the chain support" in str(error)
+    else:
+        assert failure_result == {"CANCELLED"}
+finally:
+    setattr(addon, "_apply_modifier", original_apply_modifier)
+assert set(bpy.data.objects.keys()) == objects_before_failure
+assert set(bpy.data.meshes.keys()) == meshes_before_failure
+assert bpy.context.view_layer.objects.active == active_before_failure
+assert {obj.name for obj in bpy.context.selected_objects} == selected_before_failure
+
+# Rim offset changes the raised loop radius while preserving one manifold body.
 bpy.ops.mesh.add_bike_chain_sprocket(
     teeth=11,
     tooth_tip_pitch=0.0,
@@ -77,11 +160,13 @@ bpy.ops.mesh.add_bike_chain_sprocket(
     bevel_width_mm=0.0,
 )
 expanded_sprocket = bpy.context.active_object
-expanded_support = next(
-    child for child in expanded_sprocket.children if child.get("chain_support")
-)
+assert not expanded_sprocket.children
+assert_manifold_positive_volume(expanded_sprocket)
+assert connected_mesh_components(expanded_sprocket) == 1
 expanded_radius_mm = 1000.0 * max(
-    math.hypot(vertex.co.x, vertex.co.y) for vertex in expanded_support.data.vertices
+    math.hypot(vertex.co.x, vertex.co.y)
+    for vertex in expanded_sprocket.data.vertices
+    if math.isclose(vertex.co.z * 1000.0, 2.0, abs_tol=1e-5)
 )
 assert math.isclose(expanded_radius_mm, expected_root_mm + 2.0, abs_tol=1e-5)
 
@@ -93,11 +178,13 @@ bpy.ops.mesh.add_bike_chain_sprocket(
     bevel_width_mm=0.0,
 )
 contracted_sprocket = bpy.context.active_object
-contracted_support = next(
-    child for child in contracted_sprocket.children if child.get("chain_support")
-)
+assert not contracted_sprocket.children
+assert_manifold_positive_volume(contracted_sprocket)
+assert connected_mesh_components(contracted_sprocket) == 1
 contracted_radius_mm = 1000.0 * max(
-    math.hypot(vertex.co.x, vertex.co.y) for vertex in contracted_support.data.vertices
+    math.hypot(vertex.co.x, vertex.co.y)
+    for vertex in contracted_sprocket.data.vertices
+    if math.isclose(vertex.co.z * 1000.0, 2.0, abs_tol=1e-5)
 )
 assert math.isclose(contracted_radius_mm, expected_root_mm - 2.0, abs_tol=1e-5)
 
@@ -107,16 +194,17 @@ bpy.ops.mesh.add_bike_chain_sprocket(
     bevel_width_mm=0.0,
 )
 unsupported_sprocket = bpy.context.active_object
-assert not [child for child in unsupported_sprocket.children if child.get("chain_support")]
+assert not unsupported_sprocket.children
+assert math.isclose(unsupported_sprocket.dimensions.z * 1000.0, 2.0, abs_tol=1e-6)
 
-# The bottom reset control restores every add-on geometry setting while leaving
-# Blender's placement controls untouched.
+# The bottom reset control restores every add-on and placement setting.
 bpy.ops.mesh.add_bike_chain_sprocket(
     teeth=37,
     chain_preset="MOTORCYCLE_530",
     support_rim_offset_mm=4.0,
     support_height_mm=3.0,
     generate_chain_support=False,
+    support_both_sides=True,
     location=(0.1, -0.2, 0.3),
     rotation=(0.2, -0.1, 0.4),
     reset_settings=True,
@@ -126,10 +214,12 @@ assert reset_obj["teeth"] == 5
 assert reset_obj["chain_preset"] == "BICYCLE_3_32"
 assert math.isclose(reset_obj["chain_pitch_mm"], 12.7, abs_tol=1e-6)
 assert math.isclose(reset_obj["roller_diameter_mm"], 7.75, abs_tol=1e-6)
-assert math.isclose(reset_obj.dimensions.z * 1000.0, 2.0, abs_tol=1e-6)
-reset_support = next(child for child in reset_obj.children if child.get("chain_support"))
-assert math.isclose(reset_support["support_rim_offset_mm"], 0.0, abs_tol=1e-6)
-assert math.isclose(reset_support["support_height_mm"], 1.0, abs_tol=1e-6)
+assert math.isclose(reset_obj.dimensions.z * 1000.0, 3.0, abs_tol=1e-5)
+assert not reset_obj.children
+assert reset_obj["generate_chain_support"] is True
+assert reset_obj["support_both_sides"] is False
+assert math.isclose(reset_obj["support_rim_offset_mm"], 0.0, abs_tol=1e-6)
+assert math.isclose(reset_obj["support_height_mm"], 1.0, abs_tol=1e-6)
 assert reset_obj.location.length < 1e-9
 assert sum(abs(value) for value in reset_obj.rotation_euler) < 1e-9
 
@@ -145,6 +235,7 @@ for teeth in range(5, 12):
         thickness_mm=2.0,
         bore_diameter_mm=5.0,
         samples_per_tooth=32,
+        generate_chain_support=False,
         bevel_width_mm=0.0,
     )
     assert result == {"FINISHED"}, (teeth, result)
@@ -183,8 +274,12 @@ for preset_name, (pitch_mm, roller_mm, thickness_mm) in addon.CHAIN_PRESETS.item
     assert preset_obj["chain_preset"] == preset_name
     assert math.isclose(preset_obj["chain_pitch_mm"], pitch_mm, abs_tol=1e-6)
     assert math.isclose(preset_obj["roller_diameter_mm"], roller_mm, abs_tol=1e-6)
-    assert math.isclose(preset_obj.dimensions.z * 1000.0, thickness_mm, abs_tol=1e-5)
+    assert math.isclose(
+        preset_obj.dimensions.z * 1000.0, thickness_mm + 1.0, abs_tol=1e-5
+    )
     assert_manifold_positive_volume(preset_obj)
+    assert connected_mesh_components(preset_obj) == 1
+    assert not preset_obj.children
 
 # Custom mode leaves explicitly supplied dimensions untouched.
 bpy.ops.mesh.add_bike_chain_sprocket(
@@ -200,7 +295,7 @@ custom_obj = bpy.context.active_object
 assert custom_obj["chain_preset"] == "CUSTOM"
 assert math.isclose(custom_obj["chain_pitch_mm"], 14.0, abs_tol=1e-6)
 assert math.isclose(custom_obj["roller_diameter_mm"], 8.0, abs_tol=1e-6)
-assert math.isclose(custom_obj.dimensions.z * 1000.0, 3.2, abs_tol=1e-5)
+assert math.isclose(custom_obj.dimensions.z * 1000.0, 4.2, abs_tol=1e-5)
 
 # Confirm the exact bottom of a roller seat is pitch radius minus clearance radius.
 profile, values = addon.calculate_profile(5, 12.7, 7.75, 0.15, 0.45, 0.0, 32)
@@ -258,19 +353,26 @@ scaled_od_mm = (
     * 1000.0
 )
 assert math.isclose(scaled_od_mm, 45.98, abs_tol=0.01), scaled_od_mm
-scaled_support = next(child for child in scaled_obj.children if child.get("chain_support"))
 scaled_support_radius_mm = (
-    max(math.hypot(vertex.co.x, vertex.co.y) for vertex in scaled_support.data.vertices)
+    max(
+        math.hypot(vertex.co.x, vertex.co.y)
+        for vertex in scaled_obj.data.vertices
+        if math.isclose(
+            vertex.co.z * bpy.context.scene.unit_settings.scale_length * 1000.0,
+            2.0,
+            abs_tol=1e-5,
+        )
+    )
     * bpy.context.scene.unit_settings.scale_length
     * 1000.0
 )
 assert math.isclose(scaled_support_radius_mm, expected_root_mm, abs_tol=1e-5)
 assert math.isclose(
-    scaled_support.dimensions.z
+    scaled_obj.dimensions.z
     * bpy.context.scene.unit_settings.scale_length
     * 1000.0,
-    1.0,
-    abs_tol=1e-6,
+    3.0,
+    abs_tol=1e-5,
 )
 bpy.context.scene.unit_settings.scale_length = 1.0
 
@@ -286,10 +388,23 @@ double_od_mm = 2000.0 * max(
     math.hypot(vertex.co.x, vertex.co.y) for vertex in double_obj.data.vertices
 )
 assert math.isclose(double_od_mm, 45.98 * 2.0, abs_tol=0.02), double_od_mm
-assert math.isclose(double_obj.dimensions.z * 1000.0, 4.0, abs_tol=1e-6)
+assert math.isclose(double_obj.dimensions.z * 1000.0, 6.0, abs_tol=1e-5)
 assert math.isclose(double_obj["outside_diameter_mm"], 45.9782 * 2.0, abs_tol=0.01)
-double_support = next(child for child in double_obj.children if child.get("chain_support"))
-assert math.isclose(double_support.dimensions.z * 1000.0, 2.0, abs_tol=1e-6)
+assert not double_obj.children
+
+# The public upper Scale limit must execute successfully as one connected body.
+bpy.ops.mesh.add_bike_chain_sprocket(
+    teeth=11,
+    overall_scale=1000.0,
+    tooth_tip_pitch=0.0,
+    bevel_width_mm=0.0,
+)
+maximum_scale_obj = bpy.context.active_object
+assert math.isclose(maximum_scale_obj["overall_scale"], 1000.0, abs_tol=1e-6)
+assert math.isclose(maximum_scale_obj.dimensions.z, 3.0, abs_tol=1e-5)
+assert_manifold_positive_volume(maximum_scale_obj)
+assert connected_mesh_components(maximum_scale_obj) == 1
+assert not maximum_scale_obj.children
 
 # Tooth Tip Pitch shifts upper and lower tips together; the roller-seat valley
 # remains fixed and the mesh remains manifold.
@@ -297,6 +412,7 @@ requested_pitch = math.radians(6.0)
 bpy.ops.mesh.add_bike_chain_sprocket(
     teeth=11,
     tooth_tip_pitch=requested_pitch,
+    generate_chain_support=False,
     bevel_width_mm=0.0,
 )
 pitched_obj = bpy.context.active_object
@@ -376,22 +492,7 @@ for polygon in evaluated_mesh.polygons:
         evaluated_edges[edge] = evaluated_edges.get(edge, 0) + 1
 assert all(count == 2 for count in evaluated_edges.values())
 evaluated_obj.to_mesh_clear()
-beveled_support = next(
-    child for child in beveled_obj.children if child.get("chain_support")
-)
-evaluated_support_obj = beveled_support.evaluated_get(
-    bpy.context.evaluated_depsgraph_get()
-)
-evaluated_support_mesh = evaluated_support_obj.to_mesh()
-evaluated_support_edges = {}
-for polygon in evaluated_support_mesh.polygons:
-    indices = list(polygon.vertices)
-    for index, first in enumerate(indices):
-        second = indices[(index + 1) % len(indices)]
-        edge = tuple(sorted((first, second)))
-        evaluated_support_edges[edge] = evaluated_support_edges.get(edge, 0) + 1
-assert all(count == 2 for count in evaluated_support_edges.values())
-evaluated_support_obj.to_mesh_clear()
+assert not beveled_obj.children
 
 # Invalid bores must fail cleanly instead of producing self-intersecting geometry.
 try:
@@ -406,6 +507,7 @@ else:
     raise AssertionError("Oversized bore was accepted")
 
 # Excessive negative rim offsets must fail before creating a support object.
+meshes_before_invalid_support = set(bpy.data.meshes.keys())
 try:
     bpy.ops.mesh.add_bike_chain_sprocket(
         teeth=11,
@@ -416,6 +518,7 @@ except RuntimeError as error:
     assert "Chain support rim is too small" in str(error)
 else:
     raise AssertionError("Invalid chain support rim was accepted")
+assert set(bpy.data.meshes.keys()) == meshes_before_invalid_support
 
 print("PASS: Blender add-on registered and generated manifold 5T-11T sprockets")
 for teeth, diameter, volume in results:

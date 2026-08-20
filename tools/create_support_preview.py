@@ -23,11 +23,11 @@ bpy.ops.mesh.add_bike_chain_sprocket(
     generate_chain_support=True,
     support_height_mm=1.0,
     support_rim_offset_mm=0.0,
+    support_both_sides=True,
     bevel_width_mm=0.10,
     bevel_segments=3,
 )
 sprocket = bpy.context.active_object
-support = next(child for child in sprocket.children if child.get("chain_support"))
 
 
 def material(name, color, metallic=0.0, roughness=0.35):
@@ -40,8 +40,7 @@ def material(name, color, metallic=0.0, roughness=0.35):
     return value
 
 
-sprocket.data.materials.append(material("Sprocket Steel", (0.11, 0.14, 0.18), 0.75, 0.24))
-support.data.materials.append(material("Chain Support", (0.12, 0.42, 0.72), 0.45, 0.26))
+sprocket.data.materials.append(material("Bilateral Integrated Sprocket", (0.10, 0.34, 0.58), 0.55, 0.25))
 
 bpy.ops.object.light_add(type="AREA", location=(-0.04, -0.05, 0.10))
 key = bpy.context.active_object

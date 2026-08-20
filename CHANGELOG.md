@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.6.0
+
+- Integrated the chain support into the sprocket as one connected, watertight mesh for 3D printing.
+- Added an optional `Support on Both Sides` control for a bilateral integrated platform.
+- Applied the support union during creation; no helper or child object remains.
+- Added clean Boolean-failure rollback and a Blender-version-aware solver fallback that prefers `EXACT` over legacy `FAST`.
+- Preserved signed Support Rim Offset, Support Height, Unit Scale, overall Scale, and bevel support.
+- Increased the maximum overall Scale from 100 to 1000.
+- Replaced the Tooth Tip Pitch diagram with an updated same-direction deformation view.
+
 ## 1.5.0
 
 - Added an optional annular chain-support platform, enabled by default.

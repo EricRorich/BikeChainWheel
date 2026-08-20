@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create a visual QA sheet for the directional tooth-tip pitch control."""
+"""Create the current same-direction Tooth Tip Pitch QA diagram."""
 from pathlib import Path
 import importlib
 import math
@@ -22,7 +22,7 @@ parameters = dict(
     tooth_tip_flat_mm=0.0,
     thickness_mm=2.0,
     bore_diameter_mm=5.0,
-    samples_per_tooth=48,
+    samples_per_tooth=64,
 )
 baseline_mesh, _ = addon.build_sprocket_mesh(
     **parameters,
@@ -32,41 +32,80 @@ pitched_mesh, _ = addon.build_sprocket_mesh(
     **parameters,
     tooth_tip_pitch_radians=math.radians(6.0),
 )
-count = 11 * 48
-baseline = np.array([baseline_mesh.vertices[index].co[:] for index in range(count)]) * 1000.0
-bottom = np.array([pitched_mesh.vertices[index].co[:] for index in range(count)]) * 1000.0
-top = np.array([pitched_mesh.vertices[count * 2 + index].co[:] for index in range(count)]) * 1000.0
-baseline = np.vstack((baseline, baseline[0]))
-bottom = np.vstack((bottom, bottom[0]))
-top = np.vstack((top, top[0]))
+count = 11 * 64
+baseline = np.array(
+    [baseline_mesh.vertices[index].co[:2] for index in range(count)]
+) * 1000.0
+bottom = np.array(
+    [pitched_mesh.vertices[index].co[:2] for index in range(count)]
+) * 1000.0
+top = np.array(
+    [pitched_mesh.vertices[count * 2 + index].co[:2] for index in range(count)]
+) * 1000.0
 
-fig = plt.figure(figsize=(12, 6))
-axis = fig.add_subplot(1, 2, 1)
-axis.plot(baseline[:, 0], baseline[:, 1], color="#777d86", label="Pitch 0°")
-axis.plot(bottom[:, 0], bottom[:, 1], color="#d45252", label="Pitch +6°")
-axis.set_aspect("equal")
-axis.set_title("11T · Tooth Tip Pitch · Top View")
-axis.legend()
-axis.grid(True, alpha=0.2)
-axis.set_xlabel("X [mm]")
-axis.set_ylabel("Y [mm]")
 
-axis3d = fig.add_subplot(1, 2, 2, projection="3d")
-for index in range(0, count, 4):
-    axis3d.plot(
-        [bottom[index, 0], top[index, 0]],
-        [bottom[index, 1], top[index, 1]],
-        [bottom[index, 2], top[index, 2]],
-        color="#555b66",
-        linewidth=0.6,
-    )
-axis3d.plot(bottom[:, 0], bottom[:, 1], bottom[:, 2], color="#3676c5")
-axis3d.plot(top[:, 0], top[:, 1], top[:, 2], color="#d45252")
-axis3d.set_title("Upper and lower contours aligned")
-axis3d.set_xlabel("X [mm]")
-axis3d.set_ylabel("Y [mm]")
-axis3d.set_zlabel("Z [mm]")
-axis3d.view_init(elev=34, azim=-58)
+def closed(points):
+    return np.vstack((points, points[0]))
+
+
+def rotate(points, angle):
+    cosine, sine = math.cos(angle), math.sin(angle)
+    matrix = np.array(((cosine, -sine), (sine, cosine)))
+    return points @ matrix.T
+
+
+# Vertex zero is the tooth tip at -pi/11. Rotate that tip onto the +X axis.
+rotation = math.pi / 11
+baseline_zoom = rotate(baseline, rotation)
+bottom_zoom = rotate(bottom, rotation)
+top_zoom = rotate(top, rotation)
+
+fig, axes = plt.subplots(1, 3, figsize=(16, 5.5))
+
+axes[0].plot(*closed(baseline).T, color="#777d86", linewidth=1.7, label="0°")
+axes[0].plot(*closed(bottom).T, color="#d45252", linewidth=1.7, label="+6°")
+axes[0].set_title("Current in-plane Tooth Tip Pitch")
+axes[0].legend(title="Pitch")
+
+axes[1].plot(*closed(baseline_zoom).T, color="#777d86", linewidth=2.0, label="Original")
+axes[1].plot(*closed(bottom_zoom).T, color="#d45252", linewidth=2.0, label="Shifted")
+start = baseline_zoom[0]
+end = bottom_zoom[0]
+axes[1].annotate(
+    "Upper and lower contours move together",
+    xy=end,
+    xytext=(20.0, 4.2),
+    arrowprops=dict(arrowstyle="->", color="#d45252", linewidth=1.6),
+    color="#8f2f2f",
+    ha="center",
+)
+axes[1].plot([start[0]], [start[1]], marker="o", color="#777d86", markersize=5)
+axes[1].plot([end[0]], [end[1]], marker="o", color="#d45252", markersize=5)
+axes[1].set_xlim(18.5, 24.0)
+axes[1].set_ylim(-2.0, 5.0)
+axes[1].set_title("One tooth · same tangential direction")
+axes[1].legend()
+
+axes[2].plot(*closed(bottom_zoom).T, color="#3676c5", linewidth=4.0, label="Lower contour")
+axes[2].plot(
+    *closed(top_zoom).T,
+    color="#d45252",
+    linewidth=2.0,
+    linestyle="--",
+    label="Upper contour",
+)
+axes[2].set_xlim(18.5, 24.0)
+axes[2].set_ylim(-2.0, 5.0)
+axes[2].set_title("Upper = lower · 0° relative twist")
+axes[2].legend()
+
+for axis in axes:
+    axis.set_aspect("equal")
+    axis.grid(True, alpha=0.2)
+    axis.set_xlabel("X [mm]")
+    axis.set_ylabel("Y [mm]")
+
+fig.suptitle("Bike Chain Sprocket Generator · Updated Tooth Tip Pitch", fontsize=15)
 fig.tight_layout()
 out = ROOT / "BikeChainWheel_TipPitch_Preview.png"
 fig.savefig(out, dpi=180, bbox_inches="tight", facecolor="white")

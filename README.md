@@ -61,7 +61,8 @@ All individual values remain editable after loading a preset. Before manufacturi
 | Thickness | 2.0 mm | Match to chain inner width and manufacturing clearance |
 | Bore Diameter | 5.0 mm | Circular center bore |
 | Scale | 1.0 | Uniform scale for every generated dimension |
-| Generate Chain Support | enabled | Add a raised annular platform for the chain |
+| Generate Chain Support | enabled | Integrate a raised annular platform for the chain |
+| Support on Both Sides | disabled | Add the same integrated platform to both sprocket faces |
 | Support Height | 1.0 mm | Platform height above the sprocket face |
 | Support Rim Offset | 0.0 mm | Signed radius adjustment from the roller-seat roots |
 | Profile Resolution | 32 | Profile vertices per tooth |
@@ -81,6 +82,8 @@ The mesh is generated at real metric dimensions and respects Blender's `Unit Sca
 - `generate_chain_support`
 - `support_height_mm`
 - `support_rim_offset_mm`
+- `support_outer_radius_mm`
+- `support_both_sides`
 - `tooth_tip_pitch_degrees`
 - `tooth_tip_flattening_mm`
 - `pitch_diameter_mm`
@@ -103,11 +106,13 @@ The mesh is generated at real metric dimensions and respects Blender's `Unit Sca
 
 ## Chain Support
 
-`Generate Chain Support` creates a separate, closed annular mesh above one sprocket face. It is parented to the sprocket and shares the same center bore, placement, rotation, unit conversion, and overall scale.
+`Generate Chain Support` extrudes a raised annular platform above one sprocket face. The platform is unioned into the sprocket during creation, so the result is **one connected, watertight mesh object** with no overlapping helper object. It shares the same center bore, placement, rotation, unit conversion, and overall scale and is ready for normal 3D-print export.
 
 At the default `0.0 mm` rim offset, the outer edge lies exactly on the roller-seat root circle. This supports the inner side of the chain while keeping the roller-clearance circles unobstructed. Use `Support Rim Offset` to move the edge outward with a positive value or inward with a negative value. `Support Height` controls how far the platform rises above the sprocket face.
 
-![Default chain-support platform](docs/chain-support.png)
+Enable `Support on Both Sides` to integrate the same platform into both sprocket faces. Single-sided and bilateral variants remain one connected, watertight mesh object.
+
+![Bilateral integrated chain-support platform](docs/chain-support.png)
 
 `Reset All Settings`, at the bottom of the creation panel, restores every sprocket, support, mesh-quality, and placement setting to its default.
 
@@ -115,6 +120,7 @@ At the default `0.0 mm` rim offset, the outer edge lies exactly on the roller-se
 
 - Sprockets with 5–8 teeth cause extreme chain articulation and strong polygonal action. Five teeth is only the geometric minimum supported by the generator, not a recommendation for a normal bicycle or motorcycle drivetrain.
 - `Scale` also scales chain pitch, roller seats, bore, thickness, flattening, support dimensions, and bevel. Keep it at `1.0` for a real chain unless the entire mechanism is scaled.
+- `Scale` accepts values up to `1000.0` for very large visual or fabrication variants.
 - The add-on does not reproduce proprietary shifting ramps, asymmetric shortened teeth, or Shimano/SRAM cassette spline interfaces.
 - The center mount is intentionally a configurable circular bore. Add specialized shaft or spline profiles separately.
 - Verify chain width, tolerances, material, mounting geometry, tooth strength, and the exact manufacturer specification before manufacturing or load-bearing use.
