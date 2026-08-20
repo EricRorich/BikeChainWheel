@@ -25,6 +25,8 @@ for teeth in range(5, 12):
     obj = bpy.context.active_object
     obj.location.x = x
     obj.name = f"Bike_Sprocket_{teeth}T"
+    support = next(child for child in obj.children if child.get("chain_support"))
+    support.name = f"Bike_Sprocket_{teeth}T_Chain_Support"
     pitch_radius = 12.7 / (2.0 * math.sin(math.pi / teeth))
     x += (2.0 * (pitch_radius + 0.45) + 8.0) * 0.001
 

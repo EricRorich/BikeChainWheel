@@ -24,3 +24,4 @@ tools/inspect_tip_pitch.py
 
 # Generated root-level previews are copied into docs/ for publication
 BikeChainWheel_*_Preview.png
+Screenshot *.png

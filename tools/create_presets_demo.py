@@ -23,6 +23,8 @@ for index, preset in enumerate(addon.CHAIN_PRESETS):
     )
     obj = bpy.context.active_object
     obj.name = f"Sprocket_11T_{preset}"
+    support = next(child for child in obj.children if child.get("chain_support"))
+    support.name = f"Sprocket_11T_{preset}_Chain_Support"
     obj.location.x = (index % 3) * 0.075
     obj.location.y = -(index // 3) * 0.075
 

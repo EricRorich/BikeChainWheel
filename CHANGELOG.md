@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.5.0
+
+- Added an optional annular chain-support platform, enabled by default.
+- Positioned the default support rim at the roller-seat root circle.
+- Added Support Height and signed Support Rim Offset controls.
+- Added a Reset All Settings button at the bottom of the operator panel.
+- Removed the public Profile Rotation control.
+- Added manifold, unit-scale, overall-scale, bevel, reset, and rim validation tests for the support.
+
 ## 1.4.0
 
 - Added bicycle chain presets for 1/8", 3/32", and 11/128" chains.

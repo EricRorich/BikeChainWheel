@@ -4,7 +4,7 @@
 bl_info = {
     "name": "Bike Chain Sprocket Generator",
     "author": "Eric Roehrich / Hermes Agent",
-    "version": (1, 4, 0),
+    "version": (1, 5, 0),
     "blender": (3, 6, 0),
     "location": "3D View > Add > Mesh > Bicycle Chain Sprocket",
     "description": "Generate chain-compatible sprockets with 5 or more teeth",
@@ -15,7 +15,7 @@ import math
 
 import bpy
 from bpy_extras.object_utils import AddObjectHelper, object_data_add
-from bpy.props import EnumProperty, FloatProperty, IntProperty
+from bpy.props import BoolProperty, EnumProperty, FloatProperty, IntProperty
 from bpy.types import Operator
 
 
@@ -35,12 +35,40 @@ CHAIN_PRESETS = {
     "MOTORCYCLE_530": (15.875, 10.160, 8.80),
 }
 
+SPROCKET_DEFAULTS = {
+    "chain_preset": "BICYCLE_3_32",
+    "teeth": 5,
+    "chain_pitch_mm": 12.7,
+    "roller_diameter_mm": 7.75,
+    "roller_clearance_mm": 0.15,
+    "tooth_height_mm": 0.45,
+    "tooth_tip_pitch": math.radians(1.5),
+    "tooth_tip_flat_mm": 0.0,
+    "thickness_mm": 2.0,
+    "bore_diameter_mm": 5.0,
+    "overall_scale": 1.0,
+    "generate_chain_support": True,
+    "support_height_mm": 1.0,
+    "support_rim_offset_mm": 0.0,
+    "samples_per_tooth": 32,
+    "bevel_width_mm": 0.10,
+    "bevel_segments": 2,
+}
+
 
 def _apply_chain_preset(self, context):
     values = CHAIN_PRESETS.get(self.chain_preset)
     if values is None:
         return
     self.chain_pitch_mm, self.roller_diameter_mm, self.thickness_mm = values
+
+
+def _reset_sprocket_settings(self, context):
+    if not self.reset_settings:
+        return
+    for property_name, default_value in SPROCKET_DEFAULTS.items():
+        setattr(self, property_name, default_value)
+    self.reset_settings = False
 
 
 def _smootherstep(value):
@@ -321,6 +349,70 @@ def build_sprocket_mesh(
     return mesh, dimensions
 
 
+def build_chain_support_mesh(
+    name,
+    outer_radius_mm,
+    bore_diameter_mm,
+    support_height_mm,
+    sprocket_thickness_mm,
+    segments,
+    scene_scale_length=1.0,
+    overall_scale=1.0,
+):
+    """Build a closed annular platform above one side of the sprocket."""
+    bore_radius_mm = bore_diameter_mm * 0.5
+    if outer_radius_mm <= bore_radius_mm + 0.25:
+        raise ValueError(
+            "Chain support rim is too small: leave at least 0.25 mm around the bore"
+        )
+    if support_height_mm <= 0.0:
+        raise ValueError("Chain support height must be greater than zero")
+
+    mm_to_blender_units = (
+        MM_TO_M * overall_scale / max(scene_scale_length, 1e-12)
+    )
+    outer_radius = outer_radius_mm * mm_to_blender_units
+    inner_radius = bore_radius_mm * mm_to_blender_units
+    bottom_z = sprocket_thickness_mm * 0.5 * mm_to_blender_units
+    top_z = bottom_z + support_height_mm * mm_to_blender_units
+
+    ring_count = max(32, segments)
+    outer = []
+    inner = []
+    for index in range(ring_count):
+        angle = math.tau * index / ring_count
+        cosine, sine = math.cos(angle), math.sin(angle)
+        outer.append((outer_radius * cosine, outer_radius * sine))
+        inner.append((inner_radius * cosine, inner_radius * sine))
+
+    vertices = []
+    for z in (bottom_z, top_z):
+        vertices.extend((x, y, z) for x, y in outer)
+        vertices.extend((x, y, z) for x, y in inner)
+
+    bottom_outer = 0
+    bottom_inner = ring_count
+    top_outer = ring_count * 2
+    top_inner = ring_count * 3
+    faces = []
+    for index in range(ring_count):
+        next_index = (index + 1) % ring_count
+        bo_i, bo_j = bottom_outer + index, bottom_outer + next_index
+        bi_i, bi_j = bottom_inner + index, bottom_inner + next_index
+        to_i, to_j = top_outer + index, top_outer + next_index
+        ti_i, ti_j = top_inner + index, top_inner + next_index
+        faces.append((to_i, to_j, ti_j, ti_i))
+        faces.append((bo_i, bi_i, bi_j, bo_j))
+        faces.append((bo_i, bo_j, to_j, to_i))
+        faces.append((bi_i, ti_i, ti_j, bi_j))
+
+    mesh = bpy.data.meshes.new(name)
+    mesh.from_pydata(vertices, [], faces)
+    mesh.validate(verbose=False)
+    mesh.update(calc_edges=True)
+    return mesh
+
+
 class MESH_OT_add_bike_chain_sprocket(Operator, AddObjectHelper):
     """Create a bicycle-chain sprocket using roller-seat geometry"""
 
@@ -429,21 +521,37 @@ class MESH_OT_add_bike_chain_sprocket(Operator, AddObjectHelper):
         max=100.0,
         precision=3,
     )
+    generate_chain_support: BoolProperty(
+        name="Generate Chain Support",
+        description=(
+            "Create an annular platform above the sprocket so the chain can rest on it"
+        ),
+        default=True,
+    )
+    support_height_mm: FloatProperty(
+        name="Support Height (mm)",
+        description="Height of the chain support above the sprocket face",
+        default=1.0,
+        min=0.1,
+        max=30.0,
+        precision=3,
+    )
+    support_rim_offset_mm: FloatProperty(
+        name="Support Rim Offset (mm)",
+        description=(
+            "Increase or decrease the support radius relative to the roller-seat roots"
+        ),
+        default=0.0,
+        min=-50.0,
+        max=50.0,
+        precision=3,
+    )
     samples_per_tooth: IntProperty(
         name="Profile Resolution",
         description="Vertices per tooth; higher values produce smoother roller seats",
         default=32,
         min=12,
         max=128,
-    )
-    profile_rotation: FloatProperty(
-        name="Profile Rotation",
-        description="Rotate the generated tooth pattern around the Z axis",
-        default=0.0,
-        min=math.radians(-180.0),
-        max=math.radians(180.0),
-        subtype="ANGLE",
-        unit="ROTATION",
     )
     bevel_width_mm: FloatProperty(
         name="Edge Bevel (mm)",
@@ -458,6 +566,13 @@ class MESH_OT_add_bike_chain_sprocket(Operator, AddObjectHelper):
         default=2,
         min=1,
         max=8,
+    )
+    reset_settings: BoolProperty(
+        name="Reset All Settings",
+        description="Restore all sprocket and chain-support settings to their defaults",
+        default=False,
+        options={"SKIP_SAVE"},
+        update=_reset_sprocket_settings,
     )
 
     @classmethod
@@ -482,7 +597,13 @@ class MESH_OT_add_bike_chain_sprocket(Operator, AddObjectHelper):
         body.prop(self, "thickness_mm")
         body.prop(self, "bore_diameter_mm")
         body.prop(self, "overall_scale")
-        body.prop(self, "profile_rotation")
+
+        support = layout.box()
+        support.label(text="Chain Support")
+        support.prop(self, "generate_chain_support")
+        if self.generate_chain_support:
+            support.prop(self, "support_height_mm")
+            support.prop(self, "support_rim_offset_mm")
 
         finish = layout.box()
         finish.label(text="Mesh Quality")
@@ -496,6 +617,15 @@ class MESH_OT_add_bike_chain_sprocket(Operator, AddObjectHelper):
         placement.prop(self, "align")
         placement.prop(self, "location")
         placement.prop(self, "rotation")
+
+        layout.separator()
+        layout.prop(
+            self,
+            "reset_settings",
+            text="Reset All Settings",
+            toggle=True,
+            icon="LOOP_BACK",
+        )
 
     def execute(self, context):
         name = f"Bike_Sprocket_{self.teeth}T"
@@ -511,11 +641,26 @@ class MESH_OT_add_bike_chain_sprocket(Operator, AddObjectHelper):
                 thickness_mm=self.thickness_mm,
                 bore_diameter_mm=self.bore_diameter_mm,
                 samples_per_tooth=self.samples_per_tooth,
-                rotation_radians=self.profile_rotation,
+                rotation_radians=0.0,
                 scene_scale_length=context.scene.unit_settings.scale_length,
                 overall_scale=self.overall_scale,
                 tooth_tip_pitch_radians=self.tooth_tip_pitch,
             )
+            support_mesh = None
+            support_outer_radius_mm = (
+                dimensions["root_radius_mm"] + self.support_rim_offset_mm
+            )
+            if self.generate_chain_support:
+                support_mesh = build_chain_support_mesh(
+                    name=f"{name}_Chain_Support",
+                    outer_radius_mm=support_outer_radius_mm,
+                    bore_diameter_mm=self.bore_diameter_mm,
+                    support_height_mm=self.support_height_mm,
+                    sprocket_thickness_mm=self.thickness_mm,
+                    segments=max(64, self.teeth * 8),
+                    scene_scale_length=context.scene.unit_settings.scale_length,
+                    overall_scale=self.overall_scale,
+                )
         except ValueError as error:
             self.report({"ERROR"}, str(error))
             return {"CANCELLED"}
@@ -526,6 +671,11 @@ class MESH_OT_add_bike_chain_sprocket(Operator, AddObjectHelper):
         obj["overall_scale"] = self.overall_scale
         obj["chain_pitch_mm"] = self.chain_pitch_mm
         obj["roller_diameter_mm"] = self.roller_diameter_mm
+        obj["generate_chain_support"] = self.generate_chain_support
+        obj["support_height_mm"] = self.support_height_mm * self.overall_scale
+        obj["support_rim_offset_mm"] = (
+            self.support_rim_offset_mm * self.overall_scale
+        )
         obj["tooth_tip_pitch_degrees"] = math.degrees(self.tooth_tip_pitch)
         obj["tooth_tip_flattening_mm"] = (
             self.tooth_tip_flat_mm * self.overall_scale
@@ -537,8 +687,30 @@ class MESH_OT_add_bike_chain_sprocket(Operator, AddObjectHelper):
             dimensions["outside_radius_mm"] * 2.0 * self.overall_scale
         )
         obj["profile_type"] = (
-            "circular roller seats, C2 Hermite flanks, directional pitch and flat caps"
+            "circular roller seats, C2 Hermite flanks, directional pitch, flat caps and optional chain support"
         )
+
+        support_obj = None
+        if support_mesh is not None:
+            support_obj = bpy.data.objects.new(
+                f"{name}_Chain_Support", support_mesh
+            )
+            context.collection.objects.link(support_obj)
+            support_obj.parent = obj
+            support_obj.matrix_world = obj.matrix_world.copy()
+            support_obj["chain_support"] = True
+            support_obj["support_height_mm"] = (
+                self.support_height_mm * self.overall_scale
+            )
+            support_obj["support_rim_offset_mm"] = (
+                self.support_rim_offset_mm * self.overall_scale
+            )
+            support_obj["support_outer_radius_mm"] = (
+                support_outer_radius_mm * self.overall_scale
+            )
+            support_obj.select_set(False)
+            obj.select_set(True)
+            context.view_layer.objects.active = obj
 
         if self.bevel_width_mm > 0.0:
             bevel = obj.modifiers.new(name="Manufacturing Edge Bevel", type="BEVEL")
@@ -551,6 +723,15 @@ class MESH_OT_add_bike_chain_sprocket(Operator, AddObjectHelper):
             bevel.segments = self.bevel_segments
             bevel.limit_method = "ANGLE"
             bevel.angle_limit = math.radians(20.0)
+
+            if support_obj is not None:
+                support_bevel = support_obj.modifiers.new(
+                    name="Chain Support Edge Bevel", type="BEVEL"
+                )
+                support_bevel.width = bevel.width
+                support_bevel.segments = self.bevel_segments
+                support_bevel.limit_method = "ANGLE"
+                support_bevel.angle_limit = math.radians(20.0)
 
         if self.teeth <= 8:
             self.report(

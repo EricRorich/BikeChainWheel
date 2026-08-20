@@ -13,6 +13,7 @@ Unlike Blender's general-purpose gear generator, this add-on builds sprockets fr
 - C2-continuous quintic Hermite transitions from roller seats to tooth tips
 - directional tooth-tip pitch with matching upper and lower contours
 - optional straight tangential tooth-tip flattening
+- optional raised chain-support platform with adjustable rim and height
 - closed manifold mesh with a circular center bore
 - optional non-destructive edge bevel
 
@@ -60,6 +61,9 @@ All individual values remain editable after loading a preset. Before manufacturi
 | Thickness | 2.0 mm | Match to chain inner width and manufacturing clearance |
 | Bore Diameter | 5.0 mm | Circular center bore |
 | Scale | 1.0 | Uniform scale for every generated dimension |
+| Generate Chain Support | enabled | Add a raised annular platform for the chain |
+| Support Height | 1.0 mm | Platform height above the sprocket face |
+| Support Rim Offset | 0.0 mm | Signed radius adjustment from the roller-seat roots |
 | Profile Resolution | 32 | Profile vertices per tooth |
 | Edge Bevel | 0.10 mm | Non-destructive Bevel modifier |
 
@@ -74,6 +78,9 @@ The mesh is generated at real metric dimensions and respects Blender's `Unit Sca
 - `overall_scale`
 - `chain_pitch_mm`
 - `roller_diameter_mm`
+- `generate_chain_support`
+- `support_height_mm`
+- `support_rim_offset_mm`
 - `tooth_tip_pitch_degrees`
 - `tooth_tip_flattening_mm`
 - `pitch_diameter_mm`
@@ -94,10 +101,20 @@ The mesh is generated at real metric dimensions and respects Blender's `Unit Sca
 
 ![Tooth Tip Flattening](docs/tooth-tip-flattening.png)
 
+## Chain Support
+
+`Generate Chain Support` creates a separate, closed annular mesh above one sprocket face. It is parented to the sprocket and shares the same center bore, placement, rotation, unit conversion, and overall scale.
+
+At the default `0.0 mm` rim offset, the outer edge lies exactly on the roller-seat root circle. This supports the inner side of the chain while keeping the roller-clearance circles unobstructed. Use `Support Rim Offset` to move the edge outward with a positive value or inward with a negative value. `Support Height` controls how far the platform rises above the sprocket face.
+
+![Default chain-support platform](docs/chain-support.png)
+
+`Reset All Settings`, at the bottom of the creation panel, restores all sprocket and support parameters to their defaults. Blender's standard placement controls are intentionally left unchanged.
+
 ## Important Notes
 
 - Sprockets with 5–8 teeth cause extreme chain articulation and strong polygonal action. Five teeth is only the geometric minimum supported by the generator, not a recommendation for a normal bicycle or motorcycle drivetrain.
-- `Scale` also scales chain pitch, roller seats, bore, thickness, flattening, and bevel. Keep it at `1.0` for a real chain unless the entire mechanism is scaled.
+- `Scale` also scales chain pitch, roller seats, bore, thickness, flattening, support dimensions, and bevel. Keep it at `1.0` for a real chain unless the entire mechanism is scaled.
 - The add-on does not reproduce proprietary shifting ramps, asymmetric shortened teeth, or Shimano/SRAM cassette spline interfaces.
 - The center mount is intentionally a configurable circular bore. Add specialized shaft or spline profiles separately.
 - Verify chain width, tolerances, material, mounting geometry, tooth strength, and the exact manufacturer specification before manufacturing or load-bearing use.
@@ -110,7 +127,7 @@ Run the Blender API test suite from the repository root:
 blender --background --python tests/run_blender_tests.py
 ```
 
-The suite registers the add-on and verifies 5T–11T generation, all nine bicycle/motorcycle presets and Custom mode, manifold topology, positive volume orientation, target outside diameters, exact roller seats, Blender `Unit Scale`, uniform `Scale`, 6° directional tooth-tip pitch, a true straight 0.30 mm tip flattening, the evaluated Bevel modifier, and rejection of oversized bores.
+The suite registers the add-on and verifies 5T–11T generation, all nine bicycle/motorcycle presets and Custom mode, the default/expanded/contracted chain support, reset behavior, manifold topology, positive volume orientation, target outside diameters, exact roller seats, Blender `Unit Scale`, uniform `Scale`, 6° directional tooth-tip pitch, a true straight 0.30 mm tip flattening, evaluated Bevel modifiers, and rejection of invalid bores and support rims.
 
 ## License
 

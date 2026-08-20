@@ -34,6 +34,102 @@ def assert_manifold_positive_volume(obj):
     return volume
 
 
+# The public Profile Rotation control is intentionally removed. The new chain
+# support is enabled by default and exposes only its useful physical controls.
+operator_properties = bpy.ops.mesh.add_bike_chain_sprocket.get_rna_type().properties
+assert "profile_rotation" not in operator_properties
+assert operator_properties["generate_chain_support"].default is True
+assert math.isclose(operator_properties["support_rim_offset_mm"].default, 0.0)
+assert math.isclose(operator_properties["support_height_mm"].default, 1.0)
+
+# By default the add operator creates a parented annular support above the
+# sprocket. Its outer edge matches the roller-seat root circle, so the inner
+# side of the chain can rest on it without blocking the rollers.
+bpy.ops.mesh.add_bike_chain_sprocket(
+    teeth=11,
+    tooth_tip_pitch=0.0,
+    bevel_width_mm=0.0,
+)
+supported_sprocket = bpy.context.active_object
+support_objects = [
+    child for child in supported_sprocket.children if child.get("chain_support")
+]
+assert len(support_objects) == 1
+default_support = support_objects[0]
+assert_manifold_positive_volume(default_support)
+expected_root_mm = 12.7 / (2.0 * math.sin(math.pi / 11)) - (7.75 * 0.5 + 0.15)
+support_radius_mm = 1000.0 * max(
+    math.hypot(vertex.co.x, vertex.co.y) for vertex in default_support.data.vertices
+)
+assert math.isclose(support_radius_mm, expected_root_mm, abs_tol=1e-5)
+support_z_mm = [1000.0 * vertex.co.z for vertex in default_support.data.vertices]
+assert math.isclose(min(support_z_mm), 1.0, abs_tol=1e-6)
+assert math.isclose(max(support_z_mm), 2.0, abs_tol=1e-6)
+assert default_support.parent == supported_sprocket
+
+# Rim offset changes only the support radius. Disabling support creates no
+# helper object.
+bpy.ops.mesh.add_bike_chain_sprocket(
+    teeth=11,
+    tooth_tip_pitch=0.0,
+    generate_chain_support=True,
+    support_rim_offset_mm=2.0,
+    bevel_width_mm=0.0,
+)
+expanded_sprocket = bpy.context.active_object
+expanded_support = next(
+    child for child in expanded_sprocket.children if child.get("chain_support")
+)
+expanded_radius_mm = 1000.0 * max(
+    math.hypot(vertex.co.x, vertex.co.y) for vertex in expanded_support.data.vertices
+)
+assert math.isclose(expanded_radius_mm, expected_root_mm + 2.0, abs_tol=1e-5)
+
+bpy.ops.mesh.add_bike_chain_sprocket(
+    teeth=11,
+    tooth_tip_pitch=0.0,
+    generate_chain_support=True,
+    support_rim_offset_mm=-2.0,
+    bevel_width_mm=0.0,
+)
+contracted_sprocket = bpy.context.active_object
+contracted_support = next(
+    child for child in contracted_sprocket.children if child.get("chain_support")
+)
+contracted_radius_mm = 1000.0 * max(
+    math.hypot(vertex.co.x, vertex.co.y) for vertex in contracted_support.data.vertices
+)
+assert math.isclose(contracted_radius_mm, expected_root_mm - 2.0, abs_tol=1e-5)
+
+bpy.ops.mesh.add_bike_chain_sprocket(
+    teeth=11,
+    generate_chain_support=False,
+    bevel_width_mm=0.0,
+)
+unsupported_sprocket = bpy.context.active_object
+assert not [child for child in unsupported_sprocket.children if child.get("chain_support")]
+
+# The bottom reset control restores every add-on geometry setting while leaving
+# Blender's placement controls untouched.
+bpy.ops.mesh.add_bike_chain_sprocket(
+    teeth=37,
+    chain_preset="MOTORCYCLE_530",
+    support_rim_offset_mm=4.0,
+    support_height_mm=3.0,
+    generate_chain_support=False,
+    reset_settings=True,
+)
+reset_obj = bpy.context.active_object
+assert reset_obj["teeth"] == 5
+assert reset_obj["chain_preset"] == "BICYCLE_3_32"
+assert math.isclose(reset_obj["chain_pitch_mm"], 12.7, abs_tol=1e-6)
+assert math.isclose(reset_obj["roller_diameter_mm"], 7.75, abs_tol=1e-6)
+assert math.isclose(reset_obj.dimensions.z * 1000.0, 2.0, abs_tol=1e-6)
+reset_support = next(child for child in reset_obj.children if child.get("chain_support"))
+assert math.isclose(reset_support["support_rim_offset_mm"], 0.0, abs_tol=1e-6)
+assert math.isclose(reset_support["support_height_mm"], 1.0, abs_tol=1e-6)
+
+
 results = []
 for teeth in range(5, 12):
     result = bpy.ops.mesh.add_bike_chain_sprocket(
@@ -158,6 +254,20 @@ scaled_od_mm = (
     * 1000.0
 )
 assert math.isclose(scaled_od_mm, 45.98, abs_tol=0.01), scaled_od_mm
+scaled_support = next(child for child in scaled_obj.children if child.get("chain_support"))
+scaled_support_radius_mm = (
+    max(math.hypot(vertex.co.x, vertex.co.y) for vertex in scaled_support.data.vertices)
+    * bpy.context.scene.unit_settings.scale_length
+    * 1000.0
+)
+assert math.isclose(scaled_support_radius_mm, expected_root_mm, abs_tol=1e-5)
+assert math.isclose(
+    scaled_support.dimensions.z
+    * bpy.context.scene.unit_settings.scale_length
+    * 1000.0,
+    1.0,
+    abs_tol=1e-6,
+)
 bpy.context.scene.unit_settings.scale_length = 1.0
 
 # Overall Scale must uniformly affect outside diameter and thickness.
@@ -174,6 +284,8 @@ double_od_mm = 2000.0 * max(
 assert math.isclose(double_od_mm, 45.98 * 2.0, abs_tol=0.02), double_od_mm
 assert math.isclose(double_obj.dimensions.z * 1000.0, 4.0, abs_tol=1e-6)
 assert math.isclose(double_obj["outside_diameter_mm"], 45.9782 * 2.0, abs_tol=0.01)
+double_support = next(child for child in double_obj.children if child.get("chain_support"))
+assert math.isclose(double_support.dimensions.z * 1000.0, 2.0, abs_tol=1e-6)
 
 # Tooth Tip Pitch shifts upper and lower tips together; the roller-seat valley
 # remains fixed and the mesh remains manifold.
@@ -260,6 +372,22 @@ for polygon in evaluated_mesh.polygons:
         evaluated_edges[edge] = evaluated_edges.get(edge, 0) + 1
 assert all(count == 2 for count in evaluated_edges.values())
 evaluated_obj.to_mesh_clear()
+beveled_support = next(
+    child for child in beveled_obj.children if child.get("chain_support")
+)
+evaluated_support_obj = beveled_support.evaluated_get(
+    bpy.context.evaluated_depsgraph_get()
+)
+evaluated_support_mesh = evaluated_support_obj.to_mesh()
+evaluated_support_edges = {}
+for polygon in evaluated_support_mesh.polygons:
+    indices = list(polygon.vertices)
+    for index, first in enumerate(indices):
+        second = indices[(index + 1) % len(indices)]
+        edge = tuple(sorted((first, second)))
+        evaluated_support_edges[edge] = evaluated_support_edges.get(edge, 0) + 1
+assert all(count == 2 for count in evaluated_support_edges.values())
+evaluated_support_obj.to_mesh_clear()
 
 # Invalid bores must fail cleanly instead of producing self-intersecting geometry.
 try:
@@ -272,6 +400,18 @@ except RuntimeError as error:
     assert "Bore is too large" in str(error)
 else:
     raise AssertionError("Oversized bore was accepted")
+
+# Excessive negative rim offsets must fail before creating a support object.
+try:
+    bpy.ops.mesh.add_bike_chain_sprocket(
+        teeth=11,
+        support_rim_offset_mm=-50.0,
+        bevel_width_mm=0.0,
+    )
+except RuntimeError as error:
+    assert "Chain support rim is too small" in str(error)
+else:
+    raise AssertionError("Invalid chain support rim was accepted")
 
 print("PASS: Blender add-on registered and generated manifold 5T-11T sprockets")
 for teeth, diameter, volume in results:
