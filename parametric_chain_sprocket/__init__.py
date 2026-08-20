@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Parametric bicycle-chain sprocket generator for Blender."""
+"""Parametric bicycle and motorcycle chain sprocket generator for Blender."""
 
 bl_info = {
-    "name": "Bike Chain Sprocket Generator",
+    "name": "Parametric Chain Sprocket Generator",
     "author": "Eric Roehrich / Hermes Agent",
-    "version": (1, 6, 1),
+    "version": (1, 7, 0),
     "blender": (3, 6, 0),
-    "location": "3D View > Add > Mesh > Bicycle Chain Sprocket",
+    "location": "3D View > Add > Mesh > Parametric Chain Sprocket",
     "description": "Generate watertight chain-compatible sprockets with 5 or more teeth",
     "category": "Add Mesh",
 }
@@ -41,7 +41,7 @@ SPROCKET_DEFAULTS = {
     "chain_pitch_mm": 12.7,
     "roller_diameter_mm": 7.75,
     "roller_clearance_mm": 0.15,
-    "tooth_height_mm": 0.45,
+    "tooth_height_adjustment_mm": 0.0,
     "tooth_tip_pitch": math.radians(1.5),
     "tooth_tip_flat_mm": 0.0,
     "thickness_mm": 2.0,
@@ -161,7 +161,7 @@ def calculate_profile(
     chain_pitch_mm,
     roller_diameter_mm,
     roller_clearance_mm,
-    tooth_height_mm,
+    tooth_height_adjustment_mm,
     tooth_tip_flat_mm,
     samples_per_tooth,
     rotation_radians=0.0,
@@ -179,7 +179,11 @@ def calculate_profile(
         raise ValueError("Roller radius/clearance is too large for this tooth count")
 
     root_radius = pitch_radius - roller_radius
-    tip_radius = pitch_radius + tooth_height_mm
+    standard_outside_diameter = chain_pitch_mm * (
+        0.6 + 1.0 / math.tan(math.pi / teeth)
+    )
+    standard_tip_radius = standard_outside_diameter * 0.5
+    tip_radius = standard_tip_radius + tooth_height_adjustment_mm
 
     # Keep the exact roller-seat arc slightly inside its tangency limit. For very
     # small tooth counts, this leaves enough angular space for a usable flank.
@@ -216,6 +220,10 @@ def calculate_profile(
         + seat_u_slope / seat_root
         + seat_u * seat_u / (seat_root * seat_root * seat_root)
     )
+    if tip_radius <= seat_end_radius + 0.05:
+        raise ValueError(
+            "Tooth height adjustment is too negative for this tooth count and chain size"
+        )
     maximum_tip_flat = tip_radius - seat_end_radius - 0.05
     if tooth_tip_flat_mm < 0.0 or tooth_tip_flat_mm > maximum_tip_flat:
         raise ValueError(
@@ -320,6 +328,7 @@ def calculate_profile(
         "pitch_radius_mm": pitch_radius,
         "root_radius_mm": root_radius,
         "tip_radius_mm": tip_radius,
+        "standard_outside_diameter_mm": standard_outside_diameter,
         "flat_tip_radius_mm": flat_tip_radius,
         "outside_radius_mm": outside_radius,
         "roller_seat_radius_mm": roller_radius,
@@ -334,7 +343,7 @@ def build_sprocket_mesh(
     chain_pitch_mm,
     roller_diameter_mm,
     roller_clearance_mm,
-    tooth_height_mm,
+    tooth_height_adjustment_mm,
     tooth_tip_flat_mm,
     thickness_mm,
     bore_diameter_mm,
@@ -350,7 +359,7 @@ def build_sprocket_mesh(
         chain_pitch_mm,
         roller_diameter_mm,
         roller_clearance_mm,
-        tooth_height_mm,
+        tooth_height_adjustment_mm,
         tooth_tip_flat_mm,
         samples_per_tooth,
         rotation_radians,
@@ -509,10 +518,10 @@ def build_chain_support_mesh(
 
 
 class MESH_OT_add_bike_chain_sprocket(Operator, AddObjectHelper):
-    """Create a bicycle-chain sprocket using roller-seat geometry"""
+    """Create a parametric chain sprocket using roller-seat geometry"""
 
     bl_idname = "mesh.add_bike_chain_sprocket"
-    bl_label = "Bicycle Chain Sprocket"
+    bl_label = "Parametric Chain Sprocket"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
 
     chain_preset: EnumProperty(
@@ -564,11 +573,13 @@ class MESH_OT_add_bike_chain_sprocket(Operator, AddObjectHelper):
         max=2.0,
         precision=3,
     )
-    tooth_height_mm: FloatProperty(
-        name="Tooth Height above Pitch Circle (mm)",
-        description="Radial distance from the pitch circle to each tooth tip",
-        default=0.45,
-        min=0.0,
+    tooth_height_adjustment_mm: FloatProperty(
+        name="Tooth Height Adjustment (mm)",
+        description=(
+            "Radial offset from the tooth-count-dependent standard outside diameter"
+        ),
+        default=0.0,
+        min=-5.0,
         max=10.0,
         precision=3,
     )
@@ -688,7 +699,7 @@ class MESH_OT_add_bike_chain_sprocket(Operator, AddObjectHelper):
         chain.prop(self, "chain_pitch_mm")
         chain.prop(self, "roller_diameter_mm")
         chain.prop(self, "roller_clearance_mm")
-        chain.prop(self, "tooth_height_mm")
+        chain.prop(self, "tooth_height_adjustment_mm")
         chain.prop(self, "tooth_tip_pitch")
         chain.prop(self, "tooth_tip_flat_mm")
 
@@ -729,7 +740,7 @@ class MESH_OT_add_bike_chain_sprocket(Operator, AddObjectHelper):
         )
 
     def execute(self, context):
-        name = f"Bike_Sprocket_{self.teeth}T"
+        name = f"Parametric_Sprocket_{self.teeth}T"
         mesh = None
         support_meshes = []
         try:
@@ -739,7 +750,7 @@ class MESH_OT_add_bike_chain_sprocket(Operator, AddObjectHelper):
                 chain_pitch_mm=self.chain_pitch_mm,
                 roller_diameter_mm=self.roller_diameter_mm,
                 roller_clearance_mm=self.roller_clearance_mm,
-                tooth_height_mm=self.tooth_height_mm,
+                tooth_height_adjustment_mm=self.tooth_height_adjustment_mm,
                 tooth_tip_flat_mm=self.tooth_tip_flat_mm,
                 thickness_mm=self.thickness_mm,
                 bore_diameter_mm=self.bore_diameter_mm,
@@ -765,7 +776,7 @@ class MESH_OT_add_bike_chain_sprocket(Operator, AddObjectHelper):
                             bore_diameter_mm=self.bore_diameter_mm,
                             support_height_mm=self.support_height_mm,
                             sprocket_thickness_mm=self.thickness_mm,
-                            segments=max(64, self.teeth * 8),
+                            segments=max(128, self.teeth * 16),
                             scene_scale_length=context.scene.unit_settings.scale_length,
                             overall_scale=self.overall_scale,
                             side=side,
@@ -793,6 +804,9 @@ class MESH_OT_add_bike_chain_sprocket(Operator, AddObjectHelper):
         obj["overall_scale"] = self.overall_scale
         obj["chain_pitch_mm"] = self.chain_pitch_mm
         obj["roller_diameter_mm"] = self.roller_diameter_mm
+        obj["tooth_height_adjustment_mm"] = (
+            self.tooth_height_adjustment_mm * self.overall_scale
+        )
         obj["generate_chain_support"] = self.generate_chain_support
         obj["support_both_sides"] = self.support_both_sides
         obj["support_height_mm"] = self.support_height_mm * self.overall_scale
@@ -918,7 +932,7 @@ class MESH_OT_add_bike_chain_sprocket(Operator, AddObjectHelper):
 def menu_func(self, context):
     self.layout.operator(
         MESH_OT_add_bike_chain_sprocket.bl_idname,
-        text="Bicycle Chain Sprocket",
+        text="Parametric Chain Sprocket",
         icon="MESH_CIRCLE",
     )
 

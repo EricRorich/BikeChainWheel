@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.7.0
+
+- Renamed the add-on to **Parametric Chain Sprocket Generator**.
+- Replaced the fixed 0.45 mm tooth height with a tooth-count-dependent default outside diameter.
+- Added `Tooth Height Adjustment` as a signed radial offset from the calculated standard profile.
+- Added independent pitch- and outside-diameter checks for 11T, 12T, 20T, 32T, 52T, 100T, and 150T.
+- Renamed the installable Python package and generated release artifacts.
+- Documented removal of the old package before upgrading, because Blender treats the renamed package as a separate add-on.
+- Expanded the representative profile and Blender demo sets beyond 11 teeth.
+- Increased chain-support sampling to prevent sparse legacy `EXACT` unions from leaving non-manifold edges at 8T, 12T, and 16T.
+- Rebuilt the optional demo files with Blender 4.2 LTS and documented their Blender 4.2+ file-format requirement separately from the Blender 3.6+ add-on.
+
 ## 1.6.1
 
 - Fixed bilateral support topology on Blender versions that use the legacy `EXACT` Boolean path.

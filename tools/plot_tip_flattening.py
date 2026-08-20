@@ -10,10 +10,10 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-addon = importlib.import_module("bike_chain_sprocket")
+addon = importlib.import_module("parametric_chain_sprocket")
 
-rounded, _ = addon.calculate_profile(11, 12.7, 7.75, 0.15, 0.45, 0.0, 96)
-flattened, dimensions = addon.calculate_profile(11, 12.7, 7.75, 0.15, 0.45, 0.30, 96)
+rounded, _ = addon.calculate_profile(11, 12.7, 7.75, 0.15, 0.0, 0.0, 96)
+flattened, dimensions = addon.calculate_profile(11, 12.7, 7.75, 0.15, 0.0, 0.30, 96)
 rounded = np.array(rounded + [rounded[0]])
 flattened = np.array(flattened + [flattened[0]])
 
@@ -43,6 +43,6 @@ axes[1].set_ylim(-2.0, 2.0)
 axes[1].set_xlabel("X [mm]")
 axes[1].set_ylabel("Y [mm]")
 fig.tight_layout()
-out = ROOT / "BikeChainWheel_TipFlattening_Preview.png"
+out = ROOT / "ParametricChainSprocketGenerator_TipFlattening_Preview.png"
 fig.savefig(out, dpi=180, bbox_inches="tight", facecolor="white")
 print(out)

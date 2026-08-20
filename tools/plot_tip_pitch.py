@@ -10,7 +10,7 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-addon = importlib.import_module("bike_chain_sprocket")
+addon = importlib.import_module("parametric_chain_sprocket")
 
 parameters = dict(
     name="TipPitchPreview",
@@ -18,7 +18,7 @@ parameters = dict(
     chain_pitch_mm=12.7,
     roller_diameter_mm=7.75,
     roller_clearance_mm=0.15,
-    tooth_height_mm=0.45,
+    tooth_height_adjustment_mm=0.0,
     tooth_tip_flat_mm=0.0,
     thickness_mm=2.0,
     bore_diameter_mm=5.0,
@@ -105,8 +105,8 @@ for axis in axes:
     axis.set_xlabel("X [mm]")
     axis.set_ylabel("Y [mm]")
 
-fig.suptitle("Bike Chain Sprocket Generator · Updated Tooth Tip Pitch", fontsize=15)
+fig.suptitle("Parametric Chain Sprocket Generator · Tooth Tip Pitch", fontsize=15)
 fig.tight_layout()
-out = ROOT / "BikeChainWheel_TipPitch_Preview.png"
+out = ROOT / "ParametricChainSprocketGenerator_TipPitch_Preview.png"
 fig.savefig(out, dpi=180, bbox_inches="tight", facecolor="white")
 print(out)

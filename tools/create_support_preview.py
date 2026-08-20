@@ -10,7 +10,7 @@ from mathutils import Vector
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-addon = importlib.import_module("bike_chain_sprocket")
+addon = importlib.import_module("parametric_chain_sprocket")
 addon.register()
 
 bpy.ops.object.select_all(action="SELECT")
@@ -71,7 +71,9 @@ scene.world.use_nodes = True
 background = scene.world.node_tree.nodes.get("Background")
 background.inputs["Color"].default_value = (0.018, 0.022, 0.03, 1.0)
 background.inputs["Strength"].default_value = 0.35
-scene.render.filepath = str(ROOT / "BikeChainWheel_ChainSupport_Preview.png")
+scene.render.filepath = str(
+    ROOT / "ParametricChainSprocketGenerator_ChainSupport_Preview.png"
+)
 scene.view_settings.look = "AgX - Medium High Contrast"
 bpy.ops.render.render(write_still=True)
 print(scene.render.filepath)

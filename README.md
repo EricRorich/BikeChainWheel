@@ -1,14 +1,15 @@
-# Bike Chain Sprocket Generator – Blender Add-on
+# Parametric Chain Sprocket Generator – Blender Add-on
 
 A parametric Blender generator for bicycle and motorcycle chain sprockets with five or more teeth.
 
-[**Download the latest add-on ZIP**](https://github.com/EricRorich/BikeChainWheel/releases/latest/download/bike_chain_sprocket.zip)
+[**Download the latest add-on ZIP**](https://github.com/EricRorich/ParametricChainSprocketGenerator/releases/latest/download/parametric_chain_sprocket.zip)
 
 ![Overview of bicycle and motorcycle chain presets](docs/chain-presets.png)
 
 Unlike Blender's general-purpose gear generator, this add-on builds sprockets from roller-chain geometry:
 
 - pitch circle calculated from chain pitch and tooth count
+- tooth-count-dependent standard outside diameter
 - circular roller seats
 - C2-continuous quintic Hermite transitions from roller seats to tooth tips
 - directional tooth-tip pitch with matching upper and lower contours
@@ -19,12 +20,16 @@ Unlike Blender's general-purpose gear generator, this add-on builds sprockets fr
 
 ## Installation
 
-1. Download `bike_chain_sprocket.zip` from the [Releases page](https://github.com/EricRorich/BikeChainWheel/releases).
+1. Download `parametric_chain_sprocket.zip` from the [Releases page](https://github.com/EricRorich/ParametricChainSprocketGenerator/releases).
 2. Open **Edit → Preferences → Add-ons** in Blender.
 3. Choose **Install…** or **Install from Disk…**, depending on your Blender version.
-4. Select `bike_chain_sprocket.zip` and enable the add-on.
-5. In the 3D Viewport, choose **Shift+A → Mesh → Bicycle Chain Sprocket**.
+4. Select `parametric_chain_sprocket.zip` and enable the add-on.
+5. In the 3D Viewport, choose **Shift+A → Mesh → Parametric Chain Sprocket**.
 6. Adjust the parameters during creation or reopen them with **F9 / Adjust Last Operation**.
+
+When upgrading from version 1.6.x or earlier, disable and remove the old **Bike Chain Sprocket Generator** add-on before installing 1.7.0. The Python package name changed, so Blender otherwise treats the old and new packages as separate add-ons.
+
+The installable add-on targets Blender 3.6 and newer. The optional `.blend` demonstration files attached to releases are saved with Blender 4.2 LTS and therefore require Blender 4.2 or newer to open.
 
 ## Chain Size Presets
 
@@ -45,7 +50,26 @@ Unlike Blender's general-purpose gear generator, this add-on builds sprockets fr
 
 All individual values remain editable after loading a preset. Before manufacturing, always verify the dimensions against the exact chain manufacturer's data sheet and a physical chain sample. Roller and inner widths may vary slightly by manufacturer, product series, and O-ring/X-ring construction.
 
-![Tooth counts from 5T through 11T](docs/teeth-5-to-11.png)
+![Dimension-checked tooth counts from 5T through 100T](docs/tooth-count-dimensions.png)
+
+## Tooth-Count Dimensions
+
+For chain pitch `p` and tooth count `N`, the generator uses the exact pitch-circle relation
+`Dp = p / sin(π/N)`. The default outside diameter is derived independently with the common
+roller-chain sprocket relation `Do = p × (0.6 + cot(π/N))`. `Tooth Height Adjustment` is a
+signed radial offset from that default; leave it at `0.0 mm` for the calculated diameter.
+
+| Teeth | Pitch diameter | Default outside diameter |
+|---:|---:|---:|
+| 11T | 45.078 mm | 50.872 mm |
+| 12T | 49.069 mm | 55.017 mm |
+| 20T | 81.184 mm | 87.805 mm |
+| 32T | 129.569 mm | 136.565 mm |
+| 52T | 210.340 mm | 217.576 mm |
+| 100T | 404.320 mm | 411.741 mm |
+
+These values describe a general-purpose roller-chain sprocket profile, not proprietary shortened
+cassette teeth, shifting ramps, or manufacturer-specific tooth modifications.
 
 ## Recommended Starting Values
 
@@ -55,7 +79,7 @@ All individual values remain editable after loading a preset. Before manufacturi
 | Chain Pitch | 12.7 mm | Standard 1/2-inch bicycle chain pitch |
 | Roller Diameter | 7.75 mm | Typical bicycle-chain roller diameter |
 | Roller Clearance | 0.15 mm | Additional radial clearance around each roller |
-| Tooth Height | 0.45 mm | Tooth tip above the pitch circle |
+| Tooth Height Adjustment | 0.0 mm | Signed radial offset from the calculated outside diameter |
 | Tooth Tip Pitch | 1.5° | Upper and lower contours move together in one direction |
 | Tooth Tip Flattening | 0.0 mm | Radial depth of the straight flat cap |
 | Thickness | 2.0 mm | Match to chain inner width and manufacturing clearance |
@@ -68,8 +92,6 @@ All individual values remain editable after loading a preset. Before manufacturi
 | Profile Resolution | 32 | Profile vertices per tooth |
 | Edge Bevel | 0.10 mm | Non-destructive Bevel modifier |
 
-The supplied reference cassette has an outside diameter of approximately 45.98 mm for its 11-tooth sprocket. The add-on produces approximately **45.98 mm** with the default 11T geometry.
-
 ## Generated Object Data
 
 The mesh is generated at real metric dimensions and respects Blender's `Unit Scale`. The object stores these custom properties:
@@ -79,6 +101,7 @@ The mesh is generated at real metric dimensions and respects Blender's `Unit Sca
 - `overall_scale`
 - `chain_pitch_mm`
 - `roller_diameter_mm`
+- `tooth_height_adjustment_mm`
 - `generate_chain_support`
 - `support_height_mm`
 - `support_rim_offset_mm`
@@ -133,7 +156,7 @@ Run the Blender API test suite from the repository root:
 blender --background --python tests/run_blender_tests.py
 ```
 
-The suite registers the add-on and verifies 5T–11T generation, all nine bicycle/motorcycle presets and Custom mode, single-sided and bilateral integrated supports, default/expanded/contracted support rims, reset behavior, one-component manifold topology, positive volume orientation, target outside diameters, exact roller seats, Blender `Unit Scale`, uniform `Scale` through the maximum value of 1000, supported 6° directional tooth-tip pitch, a true straight 0.30 mm tip flattening, evaluated Bevel modifiers, transactional Boolean-failure cleanup, and rejection of invalid bores and support rims. Release verification runs on the Blender Python 4.2 legacy `EXACT` path and Blender Python 5.0 `MANIFOLD` path.
+The suite registers the add-on and verifies standard pitch/outside diameters through 150T, detailed 5T–11T generation, all nine bicycle/motorcycle presets and Custom mode, single-sided and bilateral integrated supports including legacy-Boolean regression cases at 8T, 12T, 16T, and 32T, default/expanded/contracted support rims, reset behavior, one-component manifold topology, positive volume orientation, exact roller seats, Blender `Unit Scale`, uniform `Scale` through the maximum value of 1000, supported 6° directional tooth-tip pitch, a true straight 0.30 mm tip flattening, evaluated Bevel modifiers, transactional Boolean-failure cleanup, and rejection of invalid bores and support rims. Release verification runs on the Blender Python 4.2 legacy `EXACT` path and Blender Python 5.0 `MANIFOLD` path.
 
 ## License
 

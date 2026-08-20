@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Headless Blender API tests for the Bike Chain Sprocket add-on."""
+"""Headless Blender API tests for Parametric Chain Sprocket Generator."""
 from pathlib import Path
 import importlib
 import math
@@ -10,8 +10,11 @@ import bmesh
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-addon = importlib.import_module("bike_chain_sprocket")
+addon = importlib.import_module("parametric_chain_sprocket")
 addon.register()
+
+assert addon.bl_info["name"] == "Parametric Chain Sprocket Generator"
+assert addon.bl_info["version"] == (1, 7, 0)
 
 
 def assert_manifold_positive_volume(obj):
@@ -62,9 +65,82 @@ assert operator_properties["support_both_sides"].default is False
 assert math.isclose(operator_properties["support_rim_offset_mm"].default, 0.0)
 assert math.isclose(operator_properties["support_height_mm"].default, 1.0)
 assert math.isclose(operator_properties["overall_scale"].hard_max, 1000.0)
+assert "tooth_height_mm" not in operator_properties
+assert (
+    operator_properties["tooth_height_adjustment_mm"].name
+    == "Tooth Height Adjustment (mm)"
+)
+assert math.isclose(
+    operator_properties["tooth_height_adjustment_mm"].default, 0.0
+)
 assert addon._select_boolean_solver({"FAST", "EXACT"}) == "EXACT"
 assert addon._select_boolean_solver({"FLOAT", "EXACT"}) == "EXACT"
 assert addon._select_boolean_solver({"MANIFOLD", "EXACT"}) == "MANIFOLD"
+
+# The default outside diameter follows the tooth-count-dependent roller-chain
+# sprocket relation instead of adding one fixed radial height at every size.
+for dimension_teeth in (11, 12, 20, 32, 52, 100, 150):
+    expected_pitch_diameter_mm = 12.7 / math.sin(math.pi / dimension_teeth)
+    expected_outside_diameter_mm = 12.7 * (
+        0.6 + 1.0 / math.tan(math.pi / dimension_teeth)
+    )
+    profile, profile_dimensions = addon.calculate_profile(
+        dimension_teeth, 12.7, 7.75, 0.15, 0.0, 0.0, 32
+    )
+    assert math.isclose(
+        profile_dimensions["pitch_radius_mm"] * 2.0,
+        expected_pitch_diameter_mm,
+        abs_tol=1e-9,
+    )
+    assert math.isclose(
+        max(math.hypot(x, y) for x, y in profile) * 2.0,
+        expected_outside_diameter_mm,
+        abs_tol=1e-8,
+    )
+    bpy.ops.mesh.add_bike_chain_sprocket(
+        teeth=dimension_teeth,
+        tooth_height_adjustment_mm=0.0,
+        tooth_tip_pitch=0.0,
+        tooth_tip_flat_mm=0.0,
+        generate_chain_support=False,
+        bevel_width_mm=0.0,
+    )
+    dimension_obj = bpy.context.active_object
+    actual_outside_diameter_mm = 2000.0 * max(
+        math.hypot(vertex.co.x, vertex.co.y)
+        for vertex in dimension_obj.data.vertices
+    )
+    assert math.isclose(
+        actual_outside_diameter_mm,
+        expected_outside_diameter_mm,
+        abs_tol=5e-5,
+    )
+    assert_manifold_positive_volume(dimension_obj)
+    assert connected_mesh_components(dimension_obj) == 1
+
+# Tooth Height Adjustment is a radial offset, so +1 mm increases OD by 2 mm.
+adjusted_profile, _ = addon.calculate_profile(
+    52, 12.7, 7.75, 0.15, 1.0, 0.0, 32
+)
+expected_52t_od_mm = 12.7 * (0.6 + 1.0 / math.tan(math.pi / 52))
+assert math.isclose(
+    max(math.hypot(x, y) for x, y in adjusted_profile) * 2.0,
+    expected_52t_od_mm + 2.0,
+    abs_tol=1e-8,
+)
+bpy.ops.mesh.add_bike_chain_sprocket(
+    teeth=52,
+    tooth_height_adjustment_mm=1.0,
+    tooth_tip_pitch=0.0,
+    generate_chain_support=False,
+    bevel_width_mm=0.0,
+)
+adjusted_obj = bpy.context.active_object
+assert adjusted_obj.name.startswith("Parametric_Sprocket_52T")
+assert math.isclose(adjusted_obj["tooth_height_adjustment_mm"], 1.0)
+assert math.isclose(
+    adjusted_obj["outside_diameter_mm"], expected_52t_od_mm + 2.0, abs_tol=1e-5
+)
 
 # By default, sprocket and support must be one connected, watertight printable
 # object. The raised loop ends at the roller-seat root circle.
@@ -91,6 +167,20 @@ assert math.isclose(support_radius_mm, expected_root_mm, abs_tol=1e-5)
 support_z_mm = [1000.0 * vertex.co.z for vertex in supported_sprocket.data.vertices]
 assert math.isclose(min(support_z_mm), -1.0, abs_tol=1e-6)
 assert math.isclose(max(support_z_mm), 2.0, abs_tol=1e-6)
+
+# Legacy EXACT needs enough annular samples to avoid sparse-operand topology
+# defects at tooth counts whose roots do not align with a 64/8-per-tooth ring.
+for support_teeth in (8, 12, 16, 32):
+    bpy.ops.mesh.add_bike_chain_sprocket(
+        teeth=support_teeth,
+        tooth_tip_pitch=0.0,
+        generate_chain_support=True,
+        support_both_sides=(support_teeth == 32),
+        bevel_width_mm=0.0,
+    )
+    support_matrix_obj = bpy.context.active_object
+    assert_manifold_positive_volume(support_matrix_obj)
+    assert connected_mesh_components(support_matrix_obj) == 1
 
 # Optional bilateral support extrudes the same platform from both sprocket
 # faces, but still produces exactly one connected watertight object.
@@ -228,7 +318,7 @@ for teeth in range(5, 12):
         chain_pitch_mm=12.7,
         roller_diameter_mm=7.75,
         roller_clearance_mm=0.15,
-        tooth_height_mm=0.45,
+        tooth_height_adjustment_mm=0.0,
         thickness_mm=2.0,
         bore_diameter_mm=5.0,
         samples_per_tooth=32,
@@ -239,8 +329,9 @@ for teeth in range(5, 12):
     obj = bpy.context.active_object
     volume = assert_manifold_positive_volume(obj)
 
-    pitch_radius = 12.7 / (2.0 * math.sin(math.pi / teeth))
-    expected_od_m = 2.0 * (pitch_radius + 0.45) * 0.001
+    expected_od_m = (
+        12.7 * (0.6 + 1.0 / math.tan(math.pi / teeth)) * 0.001
+    )
     actual_od_m = 2.0 * max(
         math.hypot(vertex.co.x, vertex.co.y) for vertex in obj.data.vertices
     )
@@ -261,7 +352,7 @@ for preset_name, (pitch_mm, roller_mm, thickness_mm) in addon.CHAIN_PRESETS.item
     bpy.ops.mesh.add_bike_chain_sprocket(
         chain_preset=preset_name,
         teeth=11,
-        tooth_height_mm=0.45,
+        tooth_height_adjustment_mm=0.0,
         tooth_tip_pitch=0.0,
         tooth_tip_flat_mm=0.0,
         overall_scale=1.0,
@@ -295,7 +386,7 @@ assert math.isclose(custom_obj["roller_diameter_mm"], 8.0, abs_tol=1e-6)
 assert math.isclose(custom_obj.dimensions.z * 1000.0, 4.2, abs_tol=1e-5)
 
 # Confirm the exact bottom of a roller seat is pitch radius minus clearance radius.
-profile, values = addon.calculate_profile(5, 12.7, 7.75, 0.15, 0.45, 0.0, 32)
+profile, values = addon.calculate_profile(5, 12.7, 7.75, 0.15, 0.0, 0.0, 32)
 expected_root = values["pitch_radius_mm"] - values["roller_seat_radius_mm"]
 measured_root = min(math.hypot(x, y) for x, y in profile)
 assert math.isclose(measured_root, expected_root, abs_tol=1e-9)
@@ -330,14 +421,15 @@ for x, y in seat_points:
         math.hypot(x - pitch_radius, y), roller_radius, abs_tol=1e-9
     )
 
-# The new practical default reproduces the supplied 11T reference OD.
+# The default follows the tooth-count-dependent outside-diameter relation.
+standard_11t_od_mm = 12.7 * (0.6 + 1.0 / math.tan(math.pi / 11))
 bpy.context.scene.unit_settings.scale_length = 1.0
 bpy.ops.mesh.add_bike_chain_sprocket(teeth=11, bevel_width_mm=0.0)
 reference_obj = bpy.context.active_object
 reference_od_mm = 2000.0 * max(
     math.hypot(vertex.co.x, vertex.co.y) for vertex in reference_obj.data.vertices
 )
-assert math.isclose(reference_od_mm, 45.98, abs_tol=0.01), reference_od_mm
+assert math.isclose(reference_od_mm, standard_11t_od_mm, abs_tol=0.01), reference_od_mm
 
 # Millimetre inputs must remain physically correct in a millimetre-unit scene.
 bpy.context.scene.unit_settings.scale_length = 0.001
@@ -349,7 +441,7 @@ scaled_od_mm = (
     * bpy.context.scene.unit_settings.scale_length
     * 1000.0
 )
-assert math.isclose(scaled_od_mm, 45.98, abs_tol=0.01), scaled_od_mm
+assert math.isclose(scaled_od_mm, standard_11t_od_mm, abs_tol=0.01), scaled_od_mm
 scaled_support_radius_mm = (
     max(
         math.hypot(vertex.co.x, vertex.co.y)
@@ -384,9 +476,11 @@ double_obj = bpy.context.active_object
 double_od_mm = 2000.0 * max(
     math.hypot(vertex.co.x, vertex.co.y) for vertex in double_obj.data.vertices
 )
-assert math.isclose(double_od_mm, 45.98 * 2.0, abs_tol=0.02), double_od_mm
+assert math.isclose(double_od_mm, standard_11t_od_mm * 2.0, abs_tol=0.02), double_od_mm
 assert math.isclose(double_obj.dimensions.z * 1000.0, 6.0, abs_tol=1e-5)
-assert math.isclose(double_obj["outside_diameter_mm"], 45.9782 * 2.0, abs_tol=0.01)
+assert math.isclose(
+    double_obj["outside_diameter_mm"], standard_11t_od_mm * 2.0, abs_tol=0.01
+)
 assert not double_obj.children
 
 # The public upper Scale limit must execute successfully as one connected body.

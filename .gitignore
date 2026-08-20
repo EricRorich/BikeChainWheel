@@ -8,9 +8,11 @@ __pycache__/
 *.blend2
 *.blend@
 BikeChainWheel_*.blend
+ParametricChainSprocketGenerator_*.blend
 
 # Release artifacts are attached to GitHub Releases
 bike_chain_sprocket.zip
+parametric_chain_sprocket.zip
 
 # Supplied third-party reference and extracted inspection data
 cassette.stp
@@ -24,4 +26,5 @@ tools/inspect_tip_pitch.py
 
 # Generated root-level previews are copied into docs/ for publication
 BikeChainWheel_*_Preview.png
+ParametricChainSprocketGenerator_*_Preview.png
 Screenshot *.png

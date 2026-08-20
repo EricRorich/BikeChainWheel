@@ -8,7 +8,7 @@ import bpy
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-addon = importlib.import_module("bike_chain_sprocket")
+addon = importlib.import_module("parametric_chain_sprocket")
 addon.register()
 
 bpy.ops.object.select_all(action="SELECT")
@@ -26,7 +26,7 @@ for index, preset in enumerate(addon.CHAIN_PRESETS):
     obj.location.x = (index % 3) * 0.075
     obj.location.y = -(index // 3) * 0.075
 
-output = ROOT / "BikeChainWheel_ChainPresets_Demo.blend"
+output = ROOT / "ParametricChainSprocketGenerator_ChainPresets_Demo.blend"
 bpy.ops.wm.save_as_mainfile(filepath=str(output))
 print(output)
 addon.unregister()

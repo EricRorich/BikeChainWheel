@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-addon = importlib.import_module("bike_chain_sprocket")
+addon = importlib.import_module("parametric_chain_sprocket")
 
 labels = {
     "BICYCLE_1_8": 'Bicycle 1/8"',
@@ -25,7 +25,7 @@ labels = {
 fig, axes = plt.subplots(3, 3, figsize=(12, 12))
 for axis, (preset, (pitch, roller, thickness)) in zip(axes.flat, addon.CHAIN_PRESETS.items()):
     points, dimensions = addon.calculate_profile(
-        11, pitch, roller, 0.15, 0.45, 0.0, 64
+        11, pitch, roller, 0.15, 0.0, 0.0, 64
     )
     points.append(points[0])
     axis.fill(
@@ -40,8 +40,8 @@ for axis, (preset, (pitch, roller, thickness)) in zip(axes.flat, addon.CHAIN_PRE
         fontsize=9,
     )
     axis.axis("off")
-fig.suptitle("Bike Chain Sprocket Generator · Chain Size Presets · 11T", fontsize=15)
+fig.suptitle("Parametric Chain Sprocket Generator · Chain Size Presets · 11T", fontsize=15)
 fig.tight_layout()
-out = ROOT / "BikeChainWheel_ChainPresets_Preview.png"
+out = ROOT / "ParametricChainSprocketGenerator_ChainPresets_Preview.png"
 fig.savefig(out, dpi=180, bbox_inches="tight", facecolor="white")
 print(out)
