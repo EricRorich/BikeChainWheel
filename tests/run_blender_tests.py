@@ -119,37 +119,34 @@ for support_face_z in (-2.0, 2.0):
 
 # A Boolean exception must cancel cleanly without leaving the sprocket,
 # temporary support, modifier, or orphan meshes behind in the Blender file.
-objects_before_failure = set(bpy.data.objects.keys())
-meshes_before_failure = set(bpy.data.meshes.keys())
-active_before_failure = bpy.context.view_layer.objects.active
-selected_before_failure = {
-    obj.name for obj in bpy.context.selected_objects
-}
 original_apply_modifier = getattr(addon, "_apply_modifier")
+for forced_exception_type in (RuntimeError, ValueError):
+    objects_before_failure = set(bpy.data.objects.keys())
+    meshes_before_failure = set(bpy.data.meshes.keys())
+    active_before_failure = bpy.context.view_layer.objects.active
+    selected_before_failure = {obj.name for obj in bpy.context.selected_objects}
 
+    def forced_modifier_failure(modifier_name, exception_type=forced_exception_type):
+        raise exception_type("forced Boolean failure")
 
-def forced_modifier_failure(modifier_name):
-    raise RuntimeError("forced Boolean failure")
-
-
-setattr(addon, "_apply_modifier", forced_modifier_failure)
-try:
+    setattr(addon, "_apply_modifier", forced_modifier_failure)
     try:
-        failure_result = bpy.ops.mesh.add_bike_chain_sprocket(
-            teeth=11,
-            support_both_sides=True,
-            bevel_width_mm=0.0,
-        )
-    except RuntimeError as error:
-        assert "Could not integrate the chain support" in str(error)
-    else:
-        assert failure_result == {"CANCELLED"}
-finally:
-    setattr(addon, "_apply_modifier", original_apply_modifier)
-assert set(bpy.data.objects.keys()) == objects_before_failure
-assert set(bpy.data.meshes.keys()) == meshes_before_failure
-assert bpy.context.view_layer.objects.active == active_before_failure
-assert {obj.name for obj in bpy.context.selected_objects} == selected_before_failure
+        try:
+            failure_result = bpy.ops.mesh.add_bike_chain_sprocket(
+                teeth=11,
+                support_both_sides=True,
+                bevel_width_mm=0.0,
+            )
+        except RuntimeError as error:
+            assert "Could not integrate the chain support" in str(error)
+        else:
+            assert failure_result == {"CANCELLED"}
+    finally:
+        setattr(addon, "_apply_modifier", original_apply_modifier)
+    assert set(bpy.data.objects.keys()) == objects_before_failure
+    assert set(bpy.data.meshes.keys()) == meshes_before_failure
+    assert bpy.context.view_layer.objects.active == active_before_failure
+    assert {obj.name for obj in bpy.context.selected_objects} == selected_before_failure
 
 # Rim offset changes the raised loop radius while preserving one manifold body.
 bpy.ops.mesh.add_bike_chain_sprocket(
@@ -439,6 +436,42 @@ valley_delta = math.atan2(top_valley.y, top_valley.x) - math.atan2(
 )
 valley_delta = (valley_delta + math.pi) % (2.0 * math.pi) - math.pi
 assert math.isclose(valley_delta, 0.0, abs_tol=1e-6), valley_delta
+
+# With integrated support, directional pitch is applied after the Boolean so
+# legacy EXACT solvers receive an undeformed manifold sprocket. The final tip
+# still reaches the requested angle and the support circle remains unchanged.
+bpy.ops.mesh.add_bike_chain_sprocket(
+    teeth=11,
+    tooth_tip_pitch=requested_pitch,
+    generate_chain_support=True,
+    bevel_width_mm=0.0,
+)
+supported_pitch_obj = bpy.context.active_object
+assert_manifold_positive_volume(supported_pitch_obj)
+assert connected_mesh_components(supported_pitch_obj) == 1
+maximum_radius = max(
+    math.hypot(vertex.co.x, vertex.co.y)
+    for vertex in supported_pitch_obj.data.vertices
+)
+tip_angles = [
+    math.atan2(vertex.co.y, vertex.co.x)
+    for vertex in supported_pitch_obj.data.vertices
+    if math.isclose(
+        math.hypot(vertex.co.x, vertex.co.y), maximum_radius, abs_tol=1e-7
+    )
+]
+expected_tip_angle = base_tip_angle + requested_pitch
+tip_errors = [
+    abs((angle - expected_tip_angle + math.pi) % (2.0 * math.pi) - math.pi)
+    for angle in tip_angles
+]
+assert min(tip_errors) < 1e-5, min(tip_errors)
+supported_top_radius_mm = 1000.0 * max(
+    math.hypot(vertex.co.x, vertex.co.y)
+    for vertex in supported_pitch_obj.data.vertices
+    if math.isclose(vertex.co.z * 1000.0, 2.0, abs_tol=1e-5)
+)
+assert math.isclose(supported_top_radius_mm, expected_root_mm, abs_tol=1e-5)
 
 # Flattening must create a true tangential line cap while remaining compatible
 # with directional pitch and leaving roller seats untouched.

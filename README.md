@@ -133,7 +133,7 @@ Run the Blender API test suite from the repository root:
 blender --background --python tests/run_blender_tests.py
 ```
 
-The suite registers the add-on and verifies 5T–11T generation, all nine bicycle/motorcycle presets and Custom mode, the default/expanded/contracted chain support, reset behavior, manifold topology, positive volume orientation, target outside diameters, exact roller seats, Blender `Unit Scale`, uniform `Scale`, 6° directional tooth-tip pitch, a true straight 0.30 mm tip flattening, evaluated Bevel modifiers, and rejection of invalid bores and support rims.
+The suite registers the add-on and verifies 5T–11T generation, all nine bicycle/motorcycle presets and Custom mode, single-sided and bilateral integrated supports, default/expanded/contracted support rims, reset behavior, one-component manifold topology, positive volume orientation, target outside diameters, exact roller seats, Blender `Unit Scale`, uniform `Scale` through the maximum value of 1000, supported 6° directional tooth-tip pitch, a true straight 0.30 mm tip flattening, evaluated Bevel modifiers, transactional Boolean-failure cleanup, and rejection of invalid bores and support rims. Release verification runs on the Blender Python 4.2 legacy `EXACT` path and Blender Python 5.0 `MANIFOLD` path.
 
 ## License
 

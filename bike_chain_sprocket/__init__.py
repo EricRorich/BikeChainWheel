@@ -4,7 +4,7 @@
 bl_info = {
     "name": "Bike Chain Sprocket Generator",
     "author": "Eric Roehrich / Hermes Agent",
-    "version": (1, 6, 0),
+    "version": (1, 6, 1),
     "blender": (3, 6, 0),
     "location": "3D View > Add > Mesh > Bicycle Chain Sprocket",
     "description": "Generate watertight chain-compatible sprockets with 5 or more teeth",
@@ -99,6 +99,55 @@ def _remove_orphan_mesh(mesh):
             bpy.data.meshes.remove(mesh)
     except ReferenceError:
         pass
+
+
+def _combine_meshes(name, source_meshes):
+    """Combine disconnected Boolean operands into one temporary mesh datablock."""
+    vertices = []
+    faces = []
+    for source_mesh in source_meshes:
+        offset = len(vertices)
+        vertices.extend(tuple(vertex.co) for vertex in source_mesh.vertices)
+        faces.extend(
+            tuple(offset + index for index in polygon.vertices)
+            for polygon in source_mesh.polygons
+        )
+    mesh = bpy.data.meshes.new(name)
+    mesh.from_pydata(vertices, [], faces)
+    mesh.validate(verbose=False)
+    mesh.update(calc_edges=True)
+    return mesh
+
+
+def _apply_directional_pitch_to_mesh(
+    mesh,
+    teeth,
+    pitch_radians,
+    protected_radius,
+    seat_half_angle,
+    rotation_radians=0.0,
+):
+    """Deform tooth vertices after support union while preserving the support."""
+    pitch_angle = math.tau / teeth
+    half_pitch_angle = pitch_angle * 0.5
+    for vertex in mesh.vertices:
+        x, y = vertex.co.x, vertex.co.y
+        radius = math.hypot(x, y)
+        if radius <= protected_radius + 1e-12:
+            continue
+        angle = math.atan2(y, x)
+        local_angle = (
+            (angle - rotation_radians + half_pitch_angle) % pitch_angle
+        ) - half_pitch_angle
+        influence = _smootherstep(
+            (abs(local_angle) - seat_half_angle)
+            / (half_pitch_angle - seat_half_angle)
+        )
+        twist = pitch_radians * influence
+        cosine, sine = math.cos(twist), math.sin(twist)
+        vertex.co.x = x * cosine - y * sine
+        vertex.co.y = x * sine + y * cosine
+    mesh.update(calc_edges=True)
 
 
 def _smootherstep(value):
@@ -698,7 +747,9 @@ class MESH_OT_add_bike_chain_sprocket(Operator, AddObjectHelper):
                 rotation_radians=0.0,
                 scene_scale_length=context.scene.unit_settings.scale_length,
                 overall_scale=self.overall_scale,
-                tooth_tip_pitch_radians=self.tooth_tip_pitch,
+                tooth_tip_pitch_radians=(
+                    0.0 if self.generate_chain_support else self.tooth_tip_pitch
+                ),
             )
             support_outer_radius_mm = (
                 dimensions["root_radius_mm"] + self.support_rim_offset_mm
@@ -720,6 +771,13 @@ class MESH_OT_add_bike_chain_sprocket(Operator, AddObjectHelper):
                             side=side,
                         )
                     )
+                if len(support_meshes) > 1:
+                    combined_support_mesh = _combine_meshes(
+                        f"{name}_Chain_Support_Bilateral", support_meshes
+                    )
+                    for support_mesh in support_meshes:
+                        _remove_orphan_mesh(support_mesh)
+                    support_meshes = [combined_support_mesh]
         except ValueError as error:
             for support_mesh in support_meshes:
                 _remove_orphan_mesh(support_mesh)
@@ -799,7 +857,7 @@ class MESH_OT_add_bike_chain_sprocket(Operator, AddObjectHelper):
                     _remove_orphan_mesh(support_mesh)
                 obj.data.validate(verbose=False)
                 obj.data.update(calc_edges=True)
-        except RuntimeError as error:
+        except Exception as error:
             for remaining_support_mesh in support_meshes:
                 _remove_orphan_mesh(remaining_support_mesh)
             failed_mesh = obj.data
@@ -818,6 +876,23 @@ class MESH_OT_add_bike_chain_sprocket(Operator, AddObjectHelper):
                 {"ERROR"}, f"Could not integrate the chain support: {error}"
             )
             return {"CANCELLED"}
+
+        if support_meshes and abs(self.tooth_tip_pitch) > 1e-12:
+            mm_to_blender_units = (
+                MM_TO_M
+                * self.overall_scale
+                / max(context.scene.unit_settings.scale_length, 1e-12)
+            )
+            protected_radius_mm = max(
+                dimensions["root_radius_mm"], support_outer_radius_mm
+            )
+            _apply_directional_pitch_to_mesh(
+                obj.data,
+                self.teeth,
+                self.tooth_tip_pitch,
+                protected_radius_mm * mm_to_blender_units,
+                dimensions["seat_half_angle_radians"],
+            )
 
         if self.bevel_width_mm > 0.0:
             bevel = obj.modifiers.new(name="Manufacturing Edge Bevel", type="BEVEL")

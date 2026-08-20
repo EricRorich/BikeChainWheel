@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.6.1
+
+- Fixed bilateral support topology on Blender versions that use the legacy `EXACT` Boolean path.
+- Combined both support operands before applying one union, avoiding non-manifold edges from sequential legacy unions.
+- Applied directional Tooth Tip Pitch after the support union so strongly pitched profiles remain watertight on both legacy and current Boolean solvers.
+- Expanded transactional cleanup to handle every normal modifier exception type, not only `RuntimeError`.
+- Added regression coverage on both Blender Python 4.2 (`EXACT`) and 5.0 (`MANIFOLD`) paths.
+
 ## 1.6.0
 
 - Integrated the chain support into the sprocket as one connected, watertight mesh for 3D printing.
