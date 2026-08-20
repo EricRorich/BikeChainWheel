@@ -53,6 +53,9 @@ SPROCKET_DEFAULTS = {
     "samples_per_tooth": 32,
     "bevel_width_mm": 0.10,
     "bevel_segments": 2,
+    "align": "WORLD",
+    "location": (0.0, 0.0, 0.0),
+    "rotation": (0.0, 0.0, 0.0),
 }
 
 

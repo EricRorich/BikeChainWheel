@@ -117,6 +117,8 @@ bpy.ops.mesh.add_bike_chain_sprocket(
     support_rim_offset_mm=4.0,
     support_height_mm=3.0,
     generate_chain_support=False,
+    location=(0.1, -0.2, 0.3),
+    rotation=(0.2, -0.1, 0.4),
     reset_settings=True,
 )
 reset_obj = bpy.context.active_object
@@ -128,6 +130,8 @@ assert math.isclose(reset_obj.dimensions.z * 1000.0, 2.0, abs_tol=1e-6)
 reset_support = next(child for child in reset_obj.children if child.get("chain_support"))
 assert math.isclose(reset_support["support_rim_offset_mm"], 0.0, abs_tol=1e-6)
 assert math.isclose(reset_support["support_height_mm"], 1.0, abs_tol=1e-6)
+assert reset_obj.location.length < 1e-9
+assert sum(abs(value) for value in reset_obj.rotation_euler) < 1e-9
 
 
 results = []

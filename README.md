@@ -109,7 +109,7 @@ At the default `0.0 mm` rim offset, the outer edge lies exactly on the roller-se
 
 ![Default chain-support platform](docs/chain-support.png)
 
-`Reset All Settings`, at the bottom of the creation panel, restores all sprocket and support parameters to their defaults. Blender's standard placement controls are intentionally left unchanged.
+`Reset All Settings`, at the bottom of the creation panel, restores every sprocket, support, mesh-quality, and placement setting to its default.
 
 ## Important Notes
 
